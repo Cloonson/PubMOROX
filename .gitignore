@@ -15,6 +15,10 @@ build/
 src-tauri/target/
 src-tauri/gen/
 
+# Temp scripts
+deep-fix-docx.js
+fix-docx-template.js
+
 # Misc
 .DS_Store
 *.pem

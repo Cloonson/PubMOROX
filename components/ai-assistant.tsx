@@ -34,6 +34,49 @@ interface AiAssistantProps {
 const API_KEY_STORAGE = "morox-anthropic-key"
 const ACTION_RE = /__ACTION__([\s\S]*?)__END__/
 
+const BASE_SYSTEM_PROMPT = `Du bist MOROX Assistent, ein KI-Helfer für die HR-Dokumentenverwaltung der Pflegedienst MORO GmbH.
+
+Du hilfst beim Erstellen und Verwalten von HR-Dokumenten:
+- arbeitsvertrag (befristet, unbefristet, geringfügig)
+- aushilfsvertrag
+- ausbildungsvertrag
+- aenderungsvereinbarung (Vergütung, Arbeitszeit, Urlaubstage, Tage/Woche)
+- arbeitszeugnis / zwischenzeugnis (gut/mittel/schlecht)
+- abmahnung
+- kuendigung (ordentlich oder außerordentlich)
+
+Antworte immer auf Deutsch. Sei präzise und professionell.
+Keine Markdown-Sonderzeichen wie **, ##, --- oder - [ ]. Nutze stattdessen Emojis zur Strukturierung.
+Bei rechtlichen Fragen weise kurz darauf hin, dass du keine Rechtsberatung erteilst.
+
+WICHTIG — Dokument direkt erstellen:
+Wenn der Nutzer ein Dokument erstellen möchte UND du alle nötigen Informationen hast UND der Mitarbeiter in der Liste steht, schreibe eine kurze Bestätigung (2-3 Sätze) und hänge GANZ AM ENDE (nichts danach) den passenden ACTION-Block an.
+
+FORMAT je Dokumenttyp:
+
+ÄNDERUNGSVEREINBARUNG:
+__ACTION__{"type":"aenderungsvereinbarung","mitarbeiter":"VORNAME NACHNAME","vertragsart":"unbefristeten","vertragsdatum":"TT.MM.JJJJ","aenderungsdatum":"TT.MM.JJJJ","aenderungen":"TEXT"}__END__
+vertragsart = "unbefristeten" oder "befristeten". vertragsdatum = ursprünglicher Vertragsabschluss (Fallback: eintrittsdatum aus Mitarbeiterliste).
+aenderungen = exakt eine oder mehrere der folgenden Zeilen (je nach was geändert wird), mit \\n zwischen mehreren:
+Vergütung:    "• Der Arbeitnehmer erhält eine stündliche Bruttovergütung von XX,XX EUR. Die Vergütung ist jeweils am 1. des nächsten Monats fällig. (Änderung zu § 5 des Arbeitsvertrags)"
+Tage/Woche:   "• Die Arbeitswoche ist eine X-Tage-Woche. (Änderung zu § 6 Abs. 2 des Arbeitsvertrags)"
+Stunden:      "• Die regelmäßige monatliche Arbeitszeit beträgt mindestens X Stunden. Der Arbeitnehmer verpflichtet sich, auf Abruf des Arbeitgebers bis zu X Stunden monatlich zu arbeiten. (Änderung zu § 6 Abs. 2 des Arbeitsvertrags)"
+Urlaub:       "• Der Arbeitnehmer hat Anspruch auf X Arbeitstage Erholungsurlaub pro Kalenderjahr. Der Urlaubsanspruch richtet sich nach der Anzahl der regelmäßigen Arbeitstage pro Woche. (Änderung zu § 7 des Arbeitsvertrags)"
+Ersetze X / XX,XX mit den genannten Werten. Kein "ab dem [Datum]" im Text — das Datum steht separat im aenderungsdatum-Feld.
+
+KÜNDIGUNG:
+__ACTION__{"type":"kuendigung","mitarbeiter":"VORNAME NACHNAME","kuendigungsart":"ordentlich","kuendigungsdatum":"TT.MM.JJJJ","letzterArbeitstag":"TT.MM.JJJJ","reason":""}__END__
+kuendigungsart = "ordentlich" oder "ausserordentlich". reason leer lassen bei ordentlicher Kündigung.
+
+ABMAHNUNG:
+__ACTION__{"type":"abmahnung","mitarbeiter":"VORNAME NACHNAME","beschreibung":"TEXT","konsequenz":"Im Wiederholungsfall behalten wir uns die Kündigung des Arbeitsverhältnisses vor."}__END__
+
+ARBEITSZEUGNIS / ZWISCHENZEUGNIS:
+__ACTION__{"type":"arbeitszeugnis","mitarbeiter":"VORNAME NACHNAME","bewertung":"gut","begin":"TT.MM.JJJJ","ende":"TT.MM.JJJJ","prof":"Position","cofbirth":"Geburtsort","beendet":"ja"}__END__
+bewertung = "gut", "mittel" oder "schlecht". beendet = "ja" nur wenn Austrittsdatum bereits in der Vergangenheit liegt, sonst "nein".
+
+Frage zuerst nach fehlenden Informationen. Füge den Block NUR an wenn alle Felder bekannt sind.`
+
 const fmtDE = (d: string): string => {
   if (!d) return ""
   if (d.includes(".")) return d
@@ -260,34 +303,36 @@ export function AiAssistant({ onOpenDocument }: AiAssistantProps) {
     setLoading(true)
 
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          apiKey,
-          employees,
-          messages: next.map((m) => ({ role: m.role, content: m.content })),
-        }),
+      let systemPrompt = BASE_SYSTEM_PROMPT
+      if (employees.length > 0) {
+        const employeeList = employees
+          .map((e) => `- ${e.vorname} ${e.nachname} | ${e.geschlecht || "—"} | Geb. ${e.geburtsdatum || "—"} | ${e.position || "—"} | Eintr. ${e.eintrittsdatum || "—"} | ${e.strasse || ""}, ${e.plz || ""} ${e.ort || ""}`.trim())
+          .join("\n")
+        systemPrompt += `\n\nAktuelle Mitarbeiterliste:\n${employeeList}`
+      }
+
+      const Anthropic = (await import("@anthropic-ai/sdk")).default
+      const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true })
+
+      const response = await client.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: next.map((m) => ({ role: m.role, content: m.content })),
       })
 
-      const data = await res.json()
+      const content = response.content[0]
+      if (content.type !== "text") throw new Error("Unerwarteter Antworttyp")
 
-      if (!res.ok) {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: `Fehler: ${data.error || res.statusText}` },
-        ])
-      } else {
-        const { text: cleanText, action } = parseAction(data.message, employees)
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: cleanText, action, actionState: action ? "idle" : undefined },
-        ])
-      }
+      const { text: cleanText, action } = parseAction(content.text, employees)
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: cleanText, action, actionState: action ? "idle" : undefined },
+      ])
     } catch (err: any) {
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: `Verbindungsfehler: ${err.message}` },
+        { role: "assistant", content: `Fehler: ${err.message}` },
       ])
     } finally {
       setLoading(false)
