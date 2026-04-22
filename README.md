@@ -52,3 +52,21 @@ npx tauri build
 ```
 
 Die fertige `.app` / `.exe` liegt danach in `src-tauri/target/release/bundle/`.
+
+
+
+HINWEIS: 
+
+Nein. macOS-Build läuft nur auf macOS, Windows-Build nur auf Windows.     
+                                         
+  Tauri baut immer nur für das aktuelle Betriebssystem. Um eine .exe zu     
+  bekommen musst du npx tauri build auf einem Windows-PC ausführen (oder
+  GitHub Actions CI nutzen, die baut für alle Plattformen automatisch).     
+           
+  Einfachste Option für Windows-Build: Auf dem Windows-Rechner zuhause:     
+  1. git clone https://github.com/Cloonson/MOROX.git
+  2. Node.js + Rust installieren                                            
+  3. npm install                
+  4. npx tauri build                                                        
+                    
+  Dann hat er eine .exe lokal.  
