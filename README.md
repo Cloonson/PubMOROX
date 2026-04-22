@@ -57,7 +57,7 @@ Die fertige `.app` / `.exe` liegt danach in `src-tauri/target/release/bundle/`.
 
 HINWEIS: 
 
-Nein. macOS-Build läuft nur auf macOS, Windows-Build nur auf Windows.     
+macOS-Build läuft nur auf macOS, Windows-Build nur auf Windows.     
                                          
   Tauri baut immer nur für das aktuelle Betriebssystem. Um eine .exe zu     
   bekommen musst du npx tauri build auf einem Windows-PC ausführen (oder
