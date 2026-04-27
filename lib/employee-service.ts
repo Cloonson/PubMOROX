@@ -8,11 +8,16 @@ export interface Employee {
   plz: string
   ort: string
   telefon: string
+  mobil: string
   email: string
   position: string
   eintrittsdatum: string
-  personalnummer: string
+  mitNr: string
+  krankenkasse: string
+  beschaeftigung: string
+  lbnr: string
   notizen: string
+  archiviert: boolean
   createdAt: number
 }
 
@@ -44,9 +49,15 @@ async function writeEmployees(employees: Employee[]): Promise<void> {
   await writeTextFile(FILENAME, JSON.stringify(employees, null, 2), { baseDir: BaseDirectory.Document })
 }
 
-export async function listEmployees(): Promise<Employee[]> {
+export async function listEmployees(filter: "aktiv" | "archiviert" | "alle" = "aktiv"): Promise<Employee[]> {
   const employees = await readEmployees()
-  return employees.sort((a, b) => a.nachname.localeCompare(b.nachname))
+  const filtered =
+    filter === "alle"
+      ? employees
+      : filter === "archiviert"
+      ? employees.filter((e) => e.archiviert)
+      : employees.filter((e) => !e.archiviert)
+  return filtered.sort((a, b) => a.nachname.localeCompare(b.nachname))
 }
 
 export async function saveEmployee(employee: Omit<Employee, "id" | "createdAt">): Promise<Employee> {
@@ -61,12 +72,20 @@ export async function saveEmployee(employee: Omit<Employee, "id" | "createdAt">)
   return newEmployee
 }
 
-export async function updateEmployee(id: string, data: Omit<Employee, "id" | "createdAt">): Promise<void> {
+export async function updateEmployee(id: string, data: Partial<Omit<Employee, "id" | "createdAt">>): Promise<void> {
   const employees = await readEmployees()
   const idx = employees.findIndex((e) => e.id === id)
   if (idx === -1) throw new Error("Mitarbeiter nicht gefunden")
   employees[idx] = { ...employees[idx], ...data }
   await writeEmployees(employees)
+}
+
+export async function archiveEmployee(id: string): Promise<void> {
+  await updateEmployee(id, { archiviert: true })
+}
+
+export async function restoreEmployee(id: string): Promise<void> {
+  await updateEmployee(id, { archiviert: false })
 }
 
 export async function deleteEmployee(id: string): Promise<void> {

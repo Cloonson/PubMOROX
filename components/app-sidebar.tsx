@@ -11,10 +11,10 @@ import {
   FileCheck,
   AlertTriangle,
   XCircle,
-  Calculator,
   Home,
   FolderOpen,
   Users,
+  TrendingUp,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { documentTypes, type DocumentType } from "@/lib/types"
@@ -29,7 +29,6 @@ const iconMap = {
   FileCheck,
   AlertTriangle,
   XCircle,
-  Calculator,
 }
 
 interface AppSidebarProps {
@@ -40,13 +39,15 @@ interface AppSidebarProps {
   onOpenStorage?: () => void
   showMitarbeiter?: boolean
   onOpenMitarbeiter?: () => void
+  showVerguetung?: boolean
+  onOpenVerguetung?: () => void
 }
 
-export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showStorage, onOpenStorage, showMitarbeiter, onOpenMitarbeiter }: AppSidebarProps) {
+export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showStorage, onOpenStorage, showMitarbeiter, onOpenMitarbeiter, showVerguetung, onOpenVerguetung }: AppSidebarProps) {
   const vertraege = documentTypes.filter((d) => d.category === "vertraege")
   const zeugnisse = documentTypes.filter((d) => d.category === "zeugnisse")
   const disziplinar = documentTypes.filter((d) => d.category === "disziplinar")
-  const sonstiges = documentTypes.filter((d) => d.category === "sonstiges")
+
 
   return (
     <aside className="w-64 min-h-screen bg-sidebar-background text-sidebar-foreground flex flex-col">
@@ -68,7 +69,7 @@ export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showSto
             onClick={onGoHome}
             className={cn(
               "flex items-center gap-3 w-full px-3 py-2 rounded-md text-sm font-medium transition-colors",
-              activeDocument === null && !showStorage && !showMitarbeiter
+              activeDocument === null && !showStorage && !showMitarbeiter && !showVerguetung
                 ? "bg-sidebar-accent text-sidebar-accent-foreground"
                 : "hover:bg-sidebar-accent/50"
             )}
@@ -102,6 +103,7 @@ export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showSto
             <Users className="w-4 h-4" />
             Mitarbeiter
           </button>
+
         </div>
 
         <div>
@@ -196,33 +198,26 @@ export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showSto
 
         <div>
           <h3 className="text-sm font-bold text-sidebar-foreground mb-2">
-            Sonstiges
+            Vergütungsverhandlung
           </h3>
           <ul className="space-y-1">
-            {sonstiges.map((doc) => {
-              const Icon = iconMap[doc.icon as keyof typeof iconMap]
-              return (
-                <li key={doc.id}>
-                  <button
-                    onClick={() => onSelectDocument(doc.id)}
-                    className={cn(
-                      "flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm transition-colors",
-                      activeDocument === doc.id
-                        ? "bg-purple-500/10 text-purple-500"
-                        : "hover:bg-purple-500/10 hover:text-purple-500"
-                    )}
-                  >
-                    <Icon className={cn(
-                      "w-4 h-4 transition-colors",
-                      activeDocument === doc.id ? "text-purple-500" : "group-hover:text-purple-500"
-                    )} />
-                    {doc.title}
-                  </button>
-                </li>
-              )
-            })}
+            <li>
+              <button
+                onClick={onOpenVerguetung}
+                className={cn(
+                  "flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm transition-colors",
+                  showVerguetung
+                    ? "bg-purple-500/10 text-purple-500"
+                    : "hover:bg-purple-500/10 hover:text-purple-500"
+                )}
+              >
+                <TrendingUp className={cn("w-4 h-4 transition-colors", showVerguetung ? "text-purple-500" : "")} />
+                Berechnungsschema
+              </button>
+            </li>
           </ul>
         </div>
+
       </nav>
 
       <div className="p-4 border-t border-sidebar-border text-xs text-sidebar-foreground/70">

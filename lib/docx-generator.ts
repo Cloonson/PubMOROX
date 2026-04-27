@@ -2,6 +2,7 @@ import PizZip from "pizzip"
 import Docxtemplater from "docxtemplater"
 import { saveAs } from "file-saver-es"
 import expressions from "angular-expressions"
+import { addDocumentLog } from "./document-log"
 
 // Hilfsfunktion um zu prüfen ob wir in Tauri laufen
 function isTauri(): boolean {
@@ -54,7 +55,11 @@ async function logOutputPath() {
 }
 
 // Speichere Datei im files Ordner
-async function saveToOutputFolder(blob: Blob, targetFilename: string): Promise<void> {
+async function saveToOutputFolder(
+  blob: Blob,
+  targetFilename: string,
+  meta?: { type: string; vorname: string; nachname: string }
+): Promise<void> {
   const safeFilename = ensureDocxName(targetFilename)
 
   if (isTauri()) {
@@ -84,6 +89,7 @@ async function saveToOutputFolder(blob: Blob, targetFilename: string): Promise<v
       await writeFile(`MOROX/files/${safeFilename}`, uint8Array, { baseDir: BaseDirectory.Document })
       
       console.log(`✅ Datei dauerhaft gespeichert in Documents/MOROX/files/${safeFilename}`)
+      if (meta) await addDocumentLog({ ...meta, filename: safeFilename })
     } catch (error: any) {
       const msg = error?.message || String(error)
       console.error("❌ Tauri Save Error:", error)
@@ -94,6 +100,7 @@ async function saveToOutputFolder(blob: Blob, targetFilename: string): Promise<v
   } else {
     // Im Browser: normaler Download
     browserDownload(blob, targetFilename)
+    if (meta) await addDocumentLog({ ...meta, filename: ensureDocxName(targetFilename) })
   }
 }
 
@@ -214,7 +221,7 @@ export async function generateKuendigung(data: KuendigungData) {
     })
 
     const filename = `Kuendigung_${data.vorname}_${data.nachname}_${data.date.replace(/\./g, '-')}.docx`
-    await saveToOutputFolder(output, filename)
+    await saveToOutputFolder(output, filename, { type: "Kündigung", vorname: data.vorname, nachname: data.nachname })
 
     return true
   } catch (error: any) {
@@ -309,9 +316,7 @@ export async function generateAusbildungsvertrag(
 
     // Erstelle Dateinamen
     const filename = `Ausbildungsvertrag_${data.vorname}_${data.nachname}_${data.begin.replace(/\./g, '-')}.docx`
-    
-    // Speichere im output Ordner
-    await saveToOutputFolder(output, filename)
+    await saveToOutputFolder(output, filename, { type: "Ausbildungsvertrag", vorname: data.vorname, nachname: data.nachname })
 
     return true
   } catch (error: any) {
@@ -391,7 +396,7 @@ export async function generateAenderungsvereinbarung(data: Aenderungsvereinbarun
     doc.render()
 
     const output = doc.getZip().generate({ type: "blob", mimeType: DOCX_MIME, compression: "DEFLATE" })
-    await saveToOutputFolder(output, `Aenderungsvereinbarung_${data.vorname}_${data.nachname}.docx`)
+    await saveToOutputFolder(output, `Aenderungsvereinbarung_${data.vorname}_${data.nachname}.docx`, { type: "Änderungsvereinbarung", vorname: data.vorname, nachname: data.nachname })
     return true
   } catch (error: any) {
     console.error("Fehler beim Generieren der Änderungsvereinbarung:", error)
@@ -447,7 +452,7 @@ export async function generateArbeitsvertrag(data: ArbeitsvertragData) {
 
     const output = doc.getZip().generate({ type: "blob", mimeType: DOCX_MIME, compression: "DEFLATE" })
     const suffix = data.vertragsart === "geringfuegig" ? "Geringfuegig" : data.vertragsart === "befristet" ? "Befristet" : "Unbefristet"
-    await saveToOutputFolder(output, `Arbeitsvertrag_${suffix}_${data.vorname}_${data.nachname}.docx`)
+    await saveToOutputFolder(output, `Arbeitsvertrag_${suffix}_${data.vorname}_${data.nachname}.docx`, { type: "Arbeitsvertrag", vorname: data.vorname, nachname: data.nachname })
     return true
   } catch (error: any) {
     console.error("Fehler beim Generieren des Arbeitsvertrags:", error)
@@ -515,7 +520,7 @@ export async function generateAbmahnung(data: AbmahnungTemplateData) {
     doc.render()
 
     const output = doc.getZip().generate({ type: "blob", mimeType: DOCX_MIME, compression: "DEFLATE" })
-    await saveToOutputFolder(output, `Abmahnung_${data.vorname}_${data.nachname}.docx`)
+    await saveToOutputFolder(output, `Abmahnung_${data.vorname}_${data.nachname}.docx`, { type: "Abmahnung", vorname: data.vorname, nachname: data.nachname })
     return true
   } catch (error: any) {
     console.error("Fehler beim Generieren der Abmahnung:", error)
@@ -563,7 +568,7 @@ export async function generateArbeitszeugnis(data: ArbeitszeugnisData) {
     doc.render()
 
     const output = doc.getZip().generate({ type: "blob", mimeType: DOCX_MIME, compression: "DEFLATE" })
-    await saveToOutputFolder(output, `Arbeitszeugnis_${data.vorname}_${data.nachname}.docx`)
+    await saveToOutputFolder(output, `Arbeitszeugnis_${data.vorname}_${data.nachname}.docx`, { type: "Arbeitszeugnis", vorname: data.vorname, nachname: data.nachname })
     return true
   } catch (error: any) {
     console.error("Fehler beim Generieren des Arbeitszeugnisses:", error)
@@ -650,11 +655,8 @@ export async function generateAushilfsvertrag(
       compression: "DEFLATE"
     })
 
-    // Erstelle Dateinamen
     const filename = `AV_${data.vorname}_${data.nachname}_${data.begin.replace(/\./g, '-')}.docx`
-    
-    // Speichere im output Ordner
-    await saveToOutputFolder(output, filename)
+    await saveToOutputFolder(output, filename, { type: "Aushilfsvertrag", vorname: data.vorname, nachname: data.nachname })
 
     return true
   } catch (error: any) {
@@ -730,7 +732,7 @@ export async function generateInvestitionskosten(data: InvestitionskostenData) {
     })
 
     const filename = `Investitionskosten_${data.vorname}_${data.nachname}.docx`
-    await saveToOutputFolder(output, filename)
+    await saveToOutputFolder(output, filename, { type: "Investitionskosten", vorname: data.vorname, nachname: data.nachname })
 
     return true
   } catch (error: any) {

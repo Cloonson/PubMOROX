@@ -7,7 +7,6 @@ export type DocumentType =
   | "zwischenzeugnis"
   | "abmahnung"
   | "kuendigung"
-  | "investitionskosten-ausfuellhilfe"
 
 export interface DocumentTypeInfo {
   id: DocumentType
@@ -73,13 +72,6 @@ export const documentTypes: DocumentTypeInfo[] = [
     description: "Ordentliche oder außerordentliche Kündigung",
     icon: "XCircle",
     category: "disziplinar",
-  },
-  {
-    id: "investitionskosten-ausfuellhilfe",
-    title: "Investitionskosten-Ausfüllhilfe",
-    description: "Ausfüllhilfe für Investitionskosten",
-    icon: "Calculator",
-    category: "sonstiges",
   },
 ]
 
@@ -178,17 +170,6 @@ export interface KuendigungData extends BaseFormData {
   kuendigungsgrund?: string
 }
 
-export interface InvestitionskostenAusfuellhilfeData extends BaseFormData {
-  investitionstitel: string
-  investitionsbeschreibung: string
-  investitionsdatum: string
-  gesamtkosten: string
-  kategorie: string
-  lieferant?: string
-  rechnungsnummer?: string
-  notizen?: string
-}
-
 export type FormData =
   | ArbeitsvertragData
   | AushilfsvertragData
@@ -198,4 +179,3 @@ export type FormData =
   | ZwischenzeugnisData
   | AbmahnungData
   | KuendigungData
-  | InvestitionskostenAusfuellhilfeData

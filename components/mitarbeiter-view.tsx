@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   Users,
   Plus,
@@ -9,21 +9,24 @@ import {
   FileText,
   Search,
   X,
-  ChevronDown,
-  ChevronUp,
   Phone,
   Mail,
   MapPin,
   Calendar,
   Briefcase,
   Hash,
+  Upload,
+  ArchiveRestore,
+  Archive,
+  Download,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -43,10 +46,17 @@ import {
   listEmployees,
   saveEmployee,
   updateEmployee,
+  archiveEmployee,
+  restoreEmployee,
   deleteEmployee,
   type Employee,
 } from "@/lib/employee-service"
+import { parseEmployeesFromExcel, diffEmployees, type ParsedEmployee } from "@/lib/excel-import"
+import { getDocumentsForEmployee, type DocumentLogEntry } from "@/lib/document-log"
+import { openFileFromStorage } from "@/lib/storage-service"
 import { documentTypes, type DocumentType } from "@/lib/types"
+
+type Filter = "aktiv" | "archiviert" | "alle"
 
 const EMPTY_FORM: Omit<Employee, "id" | "createdAt"> = {
   vorname: "",
@@ -57,11 +67,26 @@ const EMPTY_FORM: Omit<Employee, "id" | "createdAt"> = {
   plz: "",
   ort: "",
   telefon: "",
+  mobil: "",
   email: "",
   position: "",
+  beschaeftigung: "",
   eintrittsdatum: "",
-  personalnummer: "",
+  mitNr: "",
+  krankenkasse: "",
+  lbnr: "",
   notizen: "",
+  archiviert: false,
+}
+
+interface DeleteConfirm {
+  emp: Employee
+}
+
+interface ImportDiff {
+  missing: { emp: Employee; archive: boolean }[]
+  toAdd: { parsed: ParsedEmployee; add: boolean }[]
+  toUpdate: { emp: Employee; parsed: ParsedEmployee; changes: string[]; accept: boolean }[]
 }
 
 interface MitarbeiterViewProps {
@@ -70,18 +95,26 @@ interface MitarbeiterViewProps {
 
 export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
   const [employees, setEmployees] = useState<Employee[]>([])
+  const [allEmployees, setAllEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState<Filter>("aktiv")
   const [search, setSearch] = useState("")
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null)
   const [formData, setFormData] = useState(EMPTY_FORM)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [docMenuEmployee, setDocMenuEmployee] = useState<Employee | null>(null)
+  const [importDiff, setImportDiff] = useState<ImportDiff | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(null)
+  const [detailEmployee, setDetailEmployee] = useState<Employee | null>(null)
+  const [detailDocs, setDetailDocs] = useState<DocumentLogEntry[]>([])
+  const [detailDocsLoading, setDetailDocsLoading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const load = async () => {
+  const load = async (f: Filter = filter) => {
     setLoading(true)
     try {
-      setEmployees(await listEmployees())
+      const [filtered, all] = await Promise.all([listEmployees(f), listEmployees("alle")])
+      setEmployees(filtered)
+      setAllEmployees(all)
     } catch {
       toast.error("Fehler beim Laden der Mitarbeiter")
     } finally {
@@ -90,6 +123,11 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
   }
 
   useEffect(() => { load() }, [])
+
+  const switchFilter = (f: Filter) => {
+    setFilter(f)
+    load(f)
+  }
 
   const openAdd = () => {
     setEditingEmployee(null)
@@ -124,11 +162,50 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
     }
   }
 
-  const handleDelete = async (emp: Employee) => {
-    if (!confirm(`"${emp.vorname} ${emp.nachname}" wirklich löschen?`)) return
+  const handleArchive = async (emp: Employee) => {
     try {
-      await deleteEmployee(emp.id)
-      toast.success("Mitarbeiter gelöscht")
+      await archiveEmployee(emp.id)
+      toast.success(`${emp.vorname} ${emp.nachname} archiviert`)
+      load()
+    } catch {
+      toast.error("Fehler beim Archivieren")
+    }
+  }
+
+  const handleRestore = async (emp: Employee) => {
+    try {
+      await restoreEmployee(emp.id)
+      toast.success(`${emp.vorname} ${emp.nachname} wiederhergestellt`)
+      load()
+    } catch {
+      toast.error("Fehler beim Wiederherstellen")
+    }
+  }
+
+  const openDetail = async (emp: Employee) => {
+    setDetailEmployee(emp)
+    setDetailDocs([])
+    setDetailDocsLoading(true)
+    try {
+      const docs = await getDocumentsForEmployee(emp.vorname, emp.nachname)
+      setDetailDocs(docs)
+    } catch {
+      // ignore
+    } finally {
+      setDetailDocsLoading(false)
+    }
+  }
+
+  const handleDelete = async (emp: Employee) => {
+    setDeleteConfirm({ emp })
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return
+    try {
+      await deleteEmployee(deleteConfirm.emp.id)
+      toast.success("Mitarbeiter endgültig gelöscht")
+      setDeleteConfirm(null)
       load()
     } catch {
       toast.error("Fehler beim Löschen")
@@ -136,7 +213,7 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
   }
 
   const handlePrint = (emp: Employee, docType: DocumentType) => {
-    const initialData: Record<string, string> = {
+    onPrintDocument(docType, {
       mitarbeiterVorname: emp.vorname,
       mitarbeiterNachname: emp.nachname,
       mitarbeiterGeburtsdatum: emp.geburtsdatum,
@@ -146,8 +223,94 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
       eintrittsdatum: emp.eintrittsdatum,
       position: emp.position,
       geschlecht: emp.geschlecht,
+    })
+  }
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ""
+
+    try {
+      const buffer = await file.arrayBuffer()
+      const parsed = await parseEmployeesFromExcel(buffer)
+      if (parsed.length === 0) {
+        toast.error("Keine Mitarbeiter in der Datei gefunden")
+        return
+      }
+      const activeEmployees = allEmployees.filter((e) => !e.archiviert)
+      const { missing, toAdd, toUpdate } = diffEmployees(activeEmployees, parsed)
+
+      if (missing.length === 0 && toAdd.length === 0 && toUpdate.length === 0) {
+        toast.success("Liste ist aktuell — keine Änderungen gefunden")
+        return
+      }
+
+      setImportDiff({
+        missing: missing.map((emp) => ({ emp, archive: false })),
+        toAdd: toAdd.map((p) => ({ parsed: p, add: true })),
+        toUpdate: toUpdate.map((u) => ({ ...u, accept: true })),
+      })
+    } catch (err: any) {
+      toast.error(`Fehler beim Lesen der Datei: ${err.message}`)
     }
-    onPrintDocument(docType, initialData)
+  }
+
+  const confirmImport = async () => {
+    if (!importDiff) return
+    try {
+      for (const { emp, archive } of importDiff.missing) {
+        if (archive) await archiveEmployee(emp.id)
+      }
+      for (const { parsed, add } of importDiff.toAdd) {
+        if (add) {
+          await saveEmployee({
+            ...EMPTY_FORM,
+            vorname: parsed.vorname,
+            nachname: parsed.nachname,
+            geschlecht: parsed.geschlecht,
+            geburtsdatum: parsed.geburtsdatum,
+            strasse: parsed.strasse,
+            plz: parsed.plz,
+            ort: parsed.ort,
+            eintrittsdatum: parsed.eintrittsdatum,
+            position: parsed.position,
+            beschaeftigung: parsed.beschaeftigung,
+            telefon: parsed.telefon,
+            mobil: parsed.mobil,
+            email: parsed.email,
+            mitNr: parsed.mitNr,
+            krankenkasse: parsed.krankenkasse,
+            lbnr: parsed.lbnr,
+          })
+        }
+      }
+      for (const { emp, parsed, accept } of importDiff.toUpdate) {
+        if (accept) {
+          await updateEmployee(emp.id, {
+            geschlecht: parsed.geschlecht || emp.geschlecht,
+            geburtsdatum: parsed.geburtsdatum || emp.geburtsdatum,
+            strasse: parsed.strasse || emp.strasse,
+            plz: parsed.plz || emp.plz,
+            ort: parsed.ort || emp.ort,
+            eintrittsdatum: parsed.eintrittsdatum || emp.eintrittsdatum,
+            position: parsed.position || emp.position,
+            beschaeftigung: parsed.beschaeftigung || emp.beschaeftigung,
+            telefon: parsed.telefon || emp.telefon,
+            mobil: parsed.mobil || emp.mobil,
+            email: parsed.email || emp.email,
+            krankenkasse: parsed.krankenkasse || emp.krankenkasse,
+            lbnr: parsed.lbnr || emp.lbnr,
+            mitNr: parsed.mitNr || emp.mitNr,
+          })
+        }
+      }
+      toast.success("Import abgeschlossen")
+      setImportDiff(null)
+      load()
+    } catch (err: any) {
+      toast.error(`Fehler beim Import: ${err.message}`)
+    }
   }
 
   const field = (key: keyof typeof EMPTY_FORM, label: string, type = "text", placeholder = "") => (
@@ -155,7 +318,7 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
       <Label className="text-xs text-muted-foreground">{label}</Label>
       {key === "notizen" ? (
         <Textarea
-          value={formData[key]}
+          value={formData[key] as string}
           onChange={(e) => setFormData((p) => ({ ...p, [key]: e.target.value }))}
           placeholder={placeholder}
           rows={2}
@@ -164,7 +327,7 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
       ) : (
         <Input
           type={type}
-          value={formData[key]}
+          value={formData[key] as string}
           onChange={(e) => setFormData((p) => ({ ...p, [key]: e.target.value }))}
           placeholder={placeholder}
           className="text-sm"
@@ -173,11 +336,10 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
     </div>
   )
 
-  const filtered = employees.filter(
-    (e) =>
-      `${e.vorname} ${e.nachname} ${e.position} ${e.personalnummer}`
-        .toLowerCase()
-        .includes(search.toLowerCase())
+  const filtered = employees.filter((e) =>
+    `${e.vorname} ${e.nachname} ${e.position} ${e.mitNr}`
+      .toLowerCase()
+      .includes(search.toLowerCase())
   )
 
   const docGroups = [
@@ -185,6 +347,9 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
     { label: "Zeugnisse", types: documentTypes.filter((d) => d.category === "zeugnisse") },
     { label: "Maßnahmen", types: documentTypes.filter((d) => d.category === "disziplinar") },
   ]
+
+  const activeCount = allEmployees.filter((e) => !e.archiviert).length
+  const archivedCount = allEmployees.filter((e) => e.archiviert).length
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -195,13 +360,45 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
           </div>
           <div>
             <h1 className="text-2xl font-bold">Mitarbeiter</h1>
-            <p className="text-sm text-muted-foreground">{employees.length} Mitarbeiter gespeichert</p>
+            <p className="text-sm text-muted-foreground">
+              {activeCount} aktiv{archivedCount > 0 ? ` · ${archivedCount} archiviert` : ""}
+            </p>
           </div>
         </div>
-        <Button onClick={openAdd} className="gap-2">
-          <Plus className="w-4 h-4" />
-          Mitarbeiter hinzufügen
-        </Button>
+        <div className="flex items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xls,.xlsx"
+            className="hidden"
+            onChange={handleFileSelect}
+          />
+          <Button variant="outline" className="gap-2" onClick={() => fileInputRef.current?.click()}>
+            <Upload className="w-4 h-4" />
+            Importieren
+          </Button>
+          <Button onClick={openAdd} className="gap-2">
+            <Plus className="w-4 h-4" />
+            Hinzufügen
+          </Button>
+        </div>
+      </div>
+
+      {/* Filter tabs */}
+      <div className="flex items-center gap-1 mb-4 border rounded-lg p-1 w-fit">
+        {(["aktiv", "archiviert", "alle"] as Filter[]).map((f) => (
+          <button
+            key={f}
+            onClick={() => switchFilter(f)}
+            className={`px-3 py-1 rounded-md text-sm font-medium transition-colors capitalize ${
+              filter === f
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {f === "aktiv" ? "Aktiv" : f === "archiviert" ? "Archiviert" : "Alle"}
+          </button>
+        ))}
       </div>
 
       <div className="relative mb-4">
@@ -228,143 +425,123 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
         <div className="text-center py-16 text-muted-foreground">
           <Users className="w-12 h-12 mx-auto mb-3 opacity-20" />
           <p className="font-medium">
-            {search ? "Keine Ergebnisse" : "Noch keine Mitarbeiter"}
+            {search ? "Keine Ergebnisse" : filter === "archiviert" ? "Keine archivierten Mitarbeiter" : "Noch keine Mitarbeiter"}
           </p>
-          {!search && (
-            <p className="text-sm mt-1">Klicke auf „Mitarbeiter hinzufügen"</p>
-          )}
         </div>
       ) : (
         <div className="space-y-2">
           {filtered.map((emp) => (
-            <Card key={emp.id} className="overflow-hidden">
+            <Card key={emp.id} className={`overflow-hidden ${emp.archiviert ? "opacity-60" : ""}`}>
               <CardHeader className="p-4 pb-3">
                 <div className="flex items-center justify-between">
                   <button
-                    className="flex items-center gap-3 flex-1 text-left"
-                    onClick={() => setExpandedId(expandedId === emp.id ? null : emp.id)}
+                    className="flex items-center gap-3 flex-1 text-left hover:opacity-80 transition-opacity"
+                    onClick={() => openDetail(emp)}
                   >
                     <div className="w-9 h-9 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-600 font-semibold text-sm shrink-0">
                       {emp.vorname[0]}{emp.nachname[0]}
                     </div>
                     <div>
-                      <p className="font-semibold">
-                        {emp.geschlecht === "männlich" ? "Herr " : emp.geschlecht === "weiblich" ? "Frau " : ""}{emp.vorname} {emp.nachname}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold">
+                          {emp.geschlecht === "männlich" ? "Herr " : emp.geschlecht === "weiblich" ? "Frau " : ""}
+                          {emp.vorname} {emp.nachname}
+                        </p>
+                        {emp.archiviert && (
+                          <Badge variant="secondary" className="text-xs py-0 text-orange-600">Archiviert</Badge>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2 mt-0.5">
                         {emp.position && (
-                          <Badge variant="secondary" className="text-xs py-0">
-                            {emp.position}
-                          </Badge>
+                          <Badge variant="secondary" className="text-xs py-0">{emp.position}</Badge>
                         )}
-                        {emp.personalnummer && (
-                          <span className="text-xs text-muted-foreground">
-                            #{emp.personalnummer}
-                          </span>
+                        {emp.mitNr && (
+                          <span className="text-xs text-muted-foreground">#{emp.mitNr}</span>
+                        )}
+                        {emp.beschaeftigung && (
+                          <span className="text-xs text-muted-foreground">{emp.beschaeftigung}</span>
                         )}
                       </div>
                     </div>
-                    {expandedId === emp.id ? (
-                      <ChevronUp className="w-4 h-4 ml-auto text-muted-foreground" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4 ml-auto text-muted-foreground" />
-                    )}
                   </button>
 
                   <div className="flex items-center gap-1 ml-3">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
-                          <FileText className="w-3.5 h-3.5" />
-                          Dokument
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-52">
-                        {docGroups.map((group) => (
-                          <div key={group.label}>
-                            <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">
-                              {group.label}
+                    {!emp.archiviert && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
+                            <FileText className="w-3.5 h-3.5" />
+                            Dokument
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-52">
+                          {docGroups.map((group) => (
+                            <div key={group.label}>
+                              <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">
+                                {group.label}
+                              </div>
+                              {group.types.map((doc) => (
+                                <DropdownMenuItem
+                                  key={doc.id}
+                                  onClick={() => handlePrint(emp, doc.id)}
+                                  className="text-xs"
+                                >
+                                  {doc.title}
+                                </DropdownMenuItem>
+                              ))}
                             </div>
-                            {group.types.map((doc) => (
-                              <DropdownMenuItem
-                                key={doc.id}
-                                onClick={() => handlePrint(emp, doc.id)}
-                                className="text-xs"
-                              >
-                                {doc.title}
-                              </DropdownMenuItem>
-                            ))}
-                          </div>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
 
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => openEdit(emp)}
-                    >
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(emp)}>
                       <Pencil className="w-3.5 h-3.5" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive hover:text-destructive"
-                      onClick={() => handleDelete(emp)}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
+
+                    {emp.archiviert ? (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-green-600 hover:text-green-700"
+                        onClick={() => handleRestore(emp)}
+                        title="Wiederherstellen"
+                      >
+                        <ArchiveRestore className="w-3.5 h-3.5" />
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-orange-500 hover:text-orange-600"
+                        onClick={() => handleArchive(emp)}
+                        title="Archivieren"
+                      >
+                        <Archive className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
+
+                    {emp.archiviert && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => handleDelete(emp)}
+                        title="Endgültig löschen"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CardHeader>
 
-              {expandedId === emp.id && (
-                <CardContent className="px-4 pb-4 pt-0">
-                  <div className="border-t pt-3 grid grid-cols-2 gap-2 text-sm">
-                    {emp.geburtsdatum && (
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Calendar className="w-3.5 h-3.5 shrink-0" />
-                        <span>geb. {emp.geburtsdatum}</span>
-                      </div>
-                    )}
-                    {emp.eintrittsdatum && (
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Briefcase className="w-3.5 h-3.5 shrink-0" />
-                        <span>seit {emp.eintrittsdatum}</span>
-                      </div>
-                    )}
-                    {(emp.strasse || emp.ort) && (
-                      <div className="flex items-center gap-2 text-muted-foreground col-span-2">
-                        <MapPin className="w-3.5 h-3.5 shrink-0" />
-                        <span>{[emp.strasse, emp.plz && emp.ort ? `${emp.plz} ${emp.ort}` : emp.ort].filter(Boolean).join(", ")}</span>
-                      </div>
-                    )}
-                    {emp.telefon && (
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Phone className="w-3.5 h-3.5 shrink-0" />
-                        <span>{emp.telefon}</span>
-                      </div>
-                    )}
-                    {emp.email && (
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Mail className="w-3.5 h-3.5 shrink-0" />
-                        <span>{emp.email}</span>
-                      </div>
-                    )}
-                    {emp.notizen && (
-                      <div className="col-span-2 mt-1 text-muted-foreground text-xs bg-muted/50 rounded p-2">
-                        {emp.notizen}
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              )}
             </Card>
           ))}
         </div>
       )}
 
+      {/* Edit/Add Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -381,53 +558,325 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
                 onValueChange={(v) => setFormData((p) => ({ ...p, geschlecht: v }))}
                 className="flex gap-4 pt-1"
               >
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="männlich" id="m" />
-                  <Label htmlFor="m" className="text-sm font-normal cursor-pointer">Männlich</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="weiblich" id="w" />
-                  <Label htmlFor="w" className="text-sm font-normal cursor-pointer">Weiblich</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="divers" id="d" />
-                  <Label htmlFor="d" className="text-sm font-normal cursor-pointer">Divers</Label>
-                </div>
+                {[["männlich", "Männlich"], ["weiblich", "Weiblich"], ["divers", "Divers"]].map(([val, label]) => (
+                  <div key={val} className="flex items-center gap-2">
+                    <RadioGroupItem value={val} id={val} />
+                    <Label htmlFor={val} className="text-sm font-normal cursor-pointer">{label}</Label>
+                  </div>
+                ))}
               </RadioGroup>
             </div>
+
             <div className="grid grid-cols-2 gap-3">
               {field("vorname", "Vorname *", "text", "Max")}
               {field("nachname", "Nachname *", "text", "Mustermann")}
             </div>
             <div className="grid grid-cols-2 gap-3">
               {field("geburtsdatum", "Geburtsdatum", "date")}
-              {field("personalnummer", "Personalnummer", "text", "MA-001")}
-            </div>
-            {field("position", "Position / Stelle", "text", "Pflegefachkraft")}
-            {field("eintrittsdatum", "Eintrittsdatum", "date")}
-            {field("strasse", "Straße & Hausnummer", "text", "Musterstraße 1")}
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                {field("plz", "PLZ", "text", "12345")}
-              </div>
-              <div className="col-span-2">
-                {field("ort", "Ort", "text", "Berlin")}
-              </div>
+              {field("eintrittsdatum", "Eintrittsdatum", "date")}
             </div>
             <div className="grid grid-cols-2 gap-3">
-              {field("telefon", "Telefon", "tel", "+49 123 456789")}
-              {field("email", "E-Mail", "email", "max@example.de")}
+              {field("position", "Tätigkeit", "text", "Pflegefachkraft")}
+              {field("beschaeftigung", "Beschäftigung", "text", "Vollzeit")}
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              {field("mitNr", "Mit.Nr.", "text", "32")}
+              {field("krankenkasse", "Krankenkasse", "text", "BARMER")}
+            </div>
+            {field("lbnr", "LBNR", "text", "")}
+            {field("strasse", "Straße & Hausnummer", "text", "Musterstraße 1")}
+            <div className="grid grid-cols-3 gap-3">
+              <div>{field("plz", "PLZ", "text", "44388")}</div>
+              <div className="col-span-2">{field("ort", "Ort", "text", "Dortmund")}</div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {field("telefon", "Telefon", "tel", "0234 - 12345")}
+              {field("mobil", "Mobil", "tel", "0176 - 12345678")}
+            </div>
+            {field("email", "E-Mail", "email", "max@example.de")}
             {field("notizen", "Notizen")}
           </div>
 
           <DialogFooter className="mt-2">
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Abbrechen
-            </Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Abbrechen</Button>
             <Button onClick={handleSave}>
               {editingEmployee ? "Speichern" : "Hinzufügen"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Employee Detail Modal */}
+      <Dialog open={!!detailEmployee} onOpenChange={(o) => !o && setDetailEmployee(null)}>
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
+          {detailEmployee && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-600 font-bold text-lg shrink-0">
+                    {detailEmployee.vorname[0]}{detailEmployee.nachname[0]}
+                  </div>
+                  <div>
+                    <DialogTitle className="text-lg">
+                      {detailEmployee.geschlecht === "männlich" ? "Herr " : detailEmployee.geschlecht === "weiblich" ? "Frau " : ""}
+                      {detailEmployee.vorname} {detailEmployee.nachname}
+                    </DialogTitle>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {detailEmployee.position && <Badge variant="secondary" className="text-xs">{detailEmployee.position}</Badge>}
+                      {detailEmployee.archiviert && <Badge variant="secondary" className="text-xs text-orange-600">Archiviert</Badge>}
+                    </div>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              <div className="grid grid-cols-2 gap-3 text-sm mt-2">
+                {detailEmployee.mitNr && (
+                  <div className="space-y-0.5">
+                    <p className="text-xs text-muted-foreground">Mit.Nr.</p>
+                    <p className="font-medium">{detailEmployee.mitNr}</p>
+                  </div>
+                )}
+                {detailEmployee.beschaeftigung && (
+                  <div className="space-y-0.5">
+                    <p className="text-xs text-muted-foreground">Beschäftigung</p>
+                    <p className="font-medium">{detailEmployee.beschaeftigung}</p>
+                  </div>
+                )}
+                {detailEmployee.krankenkasse && (
+                  <div className="space-y-0.5 col-span-2">
+                    <p className="text-xs text-muted-foreground">Krankenkasse</p>
+                    <p className="font-medium">{detailEmployee.krankenkasse}</p>
+                  </div>
+                )}
+                {detailEmployee.geburtsdatum && (
+                  <div className="space-y-0.5">
+                    <p className="text-xs text-muted-foreground">Geburtsdatum</p>
+                    <p className="font-medium">{detailEmployee.geburtsdatum}</p>
+                  </div>
+                )}
+                {detailEmployee.eintrittsdatum && (
+                  <div className="space-y-0.5">
+                    <p className="text-xs text-muted-foreground">Eintrittsdatum</p>
+                    <p className="font-medium">{detailEmployee.eintrittsdatum}</p>
+                  </div>
+                )}
+                {(detailEmployee.strasse || detailEmployee.ort) && (
+                  <div className="space-y-0.5 col-span-2">
+                    <p className="text-xs text-muted-foreground">Adresse</p>
+                    <p className="font-medium">
+                      {[detailEmployee.strasse, [detailEmployee.plz, detailEmployee.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ")}
+                    </p>
+                  </div>
+                )}
+                {detailEmployee.telefon && (
+                  <div className="space-y-0.5">
+                    <p className="text-xs text-muted-foreground">Telefon</p>
+                    <p className="font-medium">{detailEmployee.telefon}</p>
+                  </div>
+                )}
+                {detailEmployee.mobil && (
+                  <div className="space-y-0.5">
+                    <p className="text-xs text-muted-foreground">Mobil</p>
+                    <p className="font-medium">{detailEmployee.mobil}</p>
+                  </div>
+                )}
+                {detailEmployee.email && (
+                  <div className="space-y-0.5 col-span-2">
+                    <p className="text-xs text-muted-foreground">E-Mail</p>
+                    <p className="font-medium">{detailEmployee.email}</p>
+                  </div>
+                )}
+                {detailEmployee.lbnr && (
+                  <div className="space-y-0.5">
+                    <p className="text-xs text-muted-foreground">LBNR</p>
+                    <p className="font-medium">{detailEmployee.lbnr}</p>
+                  </div>
+                )}
+                {detailEmployee.notizen && (
+                  <div className="space-y-0.5 col-span-2">
+                    <p className="text-xs text-muted-foreground">Notizen</p>
+                    <p className="text-muted-foreground text-xs bg-muted/50 rounded p-2">{detailEmployee.notizen}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Document history */}
+              <div className="mt-4 border-t pt-4">
+                <p className="text-sm font-semibold mb-3 flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Erstellte Dokumente
+                </p>
+                {detailDocsLoading ? (
+                  <p className="text-xs text-muted-foreground">Laden...</p>
+                ) : detailDocs.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Noch keine Dokumente erstellt.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {detailDocs.map((doc) => (
+                      <div key={doc.id} className="flex items-center justify-between bg-muted/40 rounded-lg px-3 py-2">
+                        <div>
+                          <p className="text-sm font-medium">{doc.type}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(doc.createdAt).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => openFileFromStorage(doc.filename)}
+                          className="flex items-center gap-1 text-xs text-primary hover:underline"
+                          title={doc.filename}
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          Herunterladen
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter className="mt-4">
+                <Button variant="outline" onClick={() => openEdit(detailEmployee)}>
+                  <Pencil className="w-3.5 h-3.5 mr-1.5" /> Bearbeiten
+                </Button>
+                <Button onClick={() => setDetailEmployee(null)}>Schließen</Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteConfirm} onOpenChange={(o) => !o && setDeleteConfirm(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Mitarbeiter endgültig löschen?</DialogTitle>
+          </DialogHeader>
+          {deleteConfirm && (
+            <p className="text-sm text-muted-foreground">
+              <span className="font-semibold text-foreground">
+                {deleteConfirm.emp.vorname} {deleteConfirm.emp.nachname}
+              </span>{" "}
+              wird permanent gelöscht. Alle zugehörigen Daten gehen verloren und können nicht wiederhergestellt werden.
+            </p>
+          )}
+          <DialogFooter className="mt-2">
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Abbrechen</Button>
+            <Button variant="destructive" onClick={confirmDelete}>Endgültig löschen</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Diff Modal */}
+      <Dialog open={!!importDiff} onOpenChange={(o) => !o && setImportDiff(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Excel-Import: Unterschiede</DialogTitle>
+          </DialogHeader>
+
+          {importDiff && (
+            <div className="space-y-5">
+              {importDiff.missing.length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold text-orange-600 mb-2">
+                    ⚠️ Nicht in der neuen Liste ({importDiff.missing.length})
+                  </p>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Diese Mitarbeiter sind in MOROX, aber nicht in der importierten Excel. Archivieren oder behalten?
+                  </p>
+                  <div className="space-y-2">
+                    {importDiff.missing.map(({ emp, archive }, i) => (
+                      <div key={emp.id} className="flex items-center justify-between bg-orange-50 dark:bg-orange-950/20 rounded-lg px-3 py-2">
+                        <div>
+                          <span className="text-sm font-medium">{emp.vorname} {emp.nachname}</span>
+                          {emp.position && <span className="text-xs text-muted-foreground ml-2">{emp.position}</span>}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                            <Checkbox
+                              checked={archive}
+                              onCheckedChange={(c) =>
+                                setImportDiff((d) => d ? {
+                                  ...d,
+                                  missing: d.missing.map((m, j) => j === i ? { ...m, archive: !!c } : m),
+                                } : d)
+                              }
+                            />
+                            Archivieren
+                          </label>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {importDiff.toUpdate.length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold text-blue-600 mb-2">
+                    🔄 Geänderte Informationen ({importDiff.toUpdate.length})
+                  </p>
+                  <div className="space-y-2">
+                    {importDiff.toUpdate.map(({ emp, changes, accept }, i) => (
+                      <div key={emp.id} className="bg-blue-50 dark:bg-blue-950/20 rounded-lg px-3 py-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium">{emp.vorname} {emp.nachname}</span>
+                          <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                            <Checkbox
+                              checked={accept}
+                              onCheckedChange={(c) =>
+                                setImportDiff((d) => d ? {
+                                  ...d,
+                                  toUpdate: d.toUpdate.map((u, j) => j === i ? { ...u, accept: !!c } : u),
+                                } : d)
+                              }
+                            />
+                            Übernehmen
+                          </label>
+                        </div>
+                        <ul className="text-xs text-muted-foreground space-y-0.5">
+                          {changes.map((c, ci) => <li key={ci}>{c}</li>)}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {importDiff.toAdd.length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold text-green-600 mb-2">
+                    ✅ Neue Mitarbeiter ({importDiff.toAdd.length})
+                  </p>
+                  <div className="space-y-2">
+                    {importDiff.toAdd.map(({ parsed, add }, i) => (
+                      <div key={i} className="flex items-center justify-between bg-green-50 dark:bg-green-950/20 rounded-lg px-3 py-2">
+                        <div>
+                          <span className="text-sm font-medium">{parsed.vorname} {parsed.nachname}</span>
+                          {parsed.position && <span className="text-xs text-muted-foreground ml-2">{parsed.position}</span>}
+                        </div>
+                        <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                          <Checkbox
+                            checked={add}
+                            onCheckedChange={(c) =>
+                              setImportDiff((d) => d ? {
+                                ...d,
+                                toAdd: d.toAdd.map((a, j) => j === i ? { ...a, add: !!c } : a),
+                              } : d)
+                            }
+                          />
+                          Hinzufügen
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setImportDiff(null)}>Abbrechen</Button>
+            <Button onClick={confirmImport}>Import bestätigen</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

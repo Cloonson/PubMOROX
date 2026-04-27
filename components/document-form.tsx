@@ -32,7 +32,6 @@ import {
   generateAushilfsvertrag,
   generateAusbildungsvertrag,
   generateKuendigung,
-  generateInvestitionskosten,
   generateArbeitsvertrag,
   generateArbeitszeugnis,
   generateAenderungsvereinbarung,
@@ -155,10 +154,6 @@ export function DocumentForm({ documentType, onBack, onDocumentCreated, initialD
       }
       
       return kuendigungValid
-    }
-
-    if (documentType === "investitionskosten-ausfuellhilfe") {
-      return baseValid
     }
 
     if (documentType === "aenderungsvereinbarung") {
@@ -300,19 +295,6 @@ export function DocumentForm({ documentType, onBack, onDocumentCreated, initialD
         }
         await generateAbmahnung(data)
         toast.success("Abmahnung wurde erfolgreich erstellt!")
-        onDocumentCreated?.()
-      } else if (documentType === "investitionskosten-ausfuellhilfe") {
-        const data = {
-          gender: formData.geschlecht === "männlich" ? "Herr" : formData.geschlecht === "weiblich" ? "Frau" : "Person",
-          vorname: String(formData.mitarbeiterVorname),
-          nachname: String(formData.mitarbeiterNachname),
-          street: String(formData.mitarbeiterStrasse),
-          city: `${formData.mitarbeiterPlz} ${formData.mitarbeiterOrt}`,
-          bday: formatDate(String(formData.mitarbeiterGeburtsdatum)),
-        }
-
-        await generateInvestitionskosten(data)
-        toast.success("Investitionskosten-Ausfüllhilfe wurde erfolgreich erstellt!")
         onDocumentCreated?.()
       } else if (documentType === "aenderungsvereinbarung") {
         const data = {
@@ -531,8 +513,6 @@ function renderDocumentSpecificFields(
       return <AbmahnungFields formData={formData} updateField={updateField} isFieldMissing={isFieldMissing} />
     case "kuendigung":
       return <KuendigungFields formData={formData} updateField={updateField} isFieldMissing={isFieldMissing} />
-    case "investitionskosten-ausfuellhilfe":
-      return <InvestitionskostenAusfuellhilfeFields formData={formData} updateField={updateField} isFieldMissing={isFieldMissing} />
     default:
       return null
   }
@@ -1497,111 +1477,6 @@ function KuendigungFields({ formData, updateField, isFieldMissing }: FieldProps)
             />
           </div>
         )}
-      </div>
-    </section>
-  )
-}
-
-function InvestitionskostenAusfuellhilfeFields({ formData, updateField }: FieldProps) {
-  return (
-    <section>
-      <h3 className="text-lg font-semibold text-foreground mb-4">Investitionsinformationen</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="md:col-span-2">
-          <Label htmlFor="investitionstitel">Investitionstitel *</Label>
-          <Input
-            id="investitionstitel"
-            required
-            value={(formData.investitionstitel as string) || ""}
-            onChange={(e) => updateField("investitionstitel", e.target.value)}
-            placeholder="z.B. Medizinisches Equipment"
-          />
-        </div>
-
-        <div className="md:col-span-2">
-          <Label htmlFor="investitionsbeschreibung">Beschreibung *</Label>
-          <Textarea
-            id="investitionsbeschreibung"
-            required
-            value={(formData.investitionsbeschreibung as string) || ""}
-            onChange={(e) => updateField("investitionsbeschreibung", e.target.value)}
-            placeholder="Detaillierte Beschreibung der Investition..."
-            rows={4}
-          />
-        </div>
-
-        <div>
-          <Label htmlFor="investitionsdatum">Investitionsdatum *</Label>
-          <Input
-            id="investitionsdatum"
-            type="date"
-            required
-            value={(formData.investitionsdatum as string) || ""}
-            onChange={(e) => updateField("investitionsdatum", e.target.value)}
-          />
-        </div>
-
-        <div>
-          <Label htmlFor="gesamtkosten">Gesamtkosten (€) *</Label>
-          <Input
-            id="gesamtkosten"
-            required
-            value={(formData.gesamtkosten as string) || ""}
-            onChange={(e) => updateField("gesamtkosten", e.target.value)}
-            placeholder="z.B. 15000.00"
-          />
-        </div>
-
-        <div>
-          <Label htmlFor="kategorie">Kategorie *</Label>
-          <Select
-            value={(formData.kategorie as string) || ""}
-            onValueChange={(value) => updateField("kategorie", value)}
-          >
-            <SelectTrigger id="kategorie">
-              <SelectValue placeholder="Kategorie auswählen" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="medizinisches-equipment">Medizinisches Equipment</SelectItem>
-              <SelectItem value="fahrzeuge">Fahrzeuge</SelectItem>
-              <SelectItem value="it-hardware">IT-Hardware</SelectItem>
-              <SelectItem value="moebel">Möbel</SelectItem>
-              <SelectItem value="gebaude">Gebäude/Immobilien</SelectItem>
-              <SelectItem value="sonstiges">Sonstiges</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label htmlFor="lieferant">Lieferant</Label>
-          <Input
-            id="lieferant"
-            value={(formData.lieferant as string) || ""}
-            onChange={(e) => updateField("lieferant", e.target.value)}
-            placeholder="Name des Lieferanten"
-          />
-        </div>
-
-        <div>
-          <Label htmlFor="rechnungsnummer">Rechnungsnummer</Label>
-          <Input
-            id="rechnungsnummer"
-            value={(formData.rechnungsnummer as string) || ""}
-            onChange={(e) => updateField("rechnungsnummer", e.target.value)}
-            placeholder="z.B. RE-2024-001"
-          />
-        </div>
-
-        <div className="md:col-span-2">
-          <Label htmlFor="notizen">Notizen</Label>
-          <Textarea
-            id="notizen"
-            value={(formData.notizen as string) || ""}
-            onChange={(e) => updateField("notizen", e.target.value)}
-            placeholder="Zusätzliche Hinweise oder Anmerkungen..."
-            rows={3}
-          />
-        </div>
       </div>
     </section>
   )
