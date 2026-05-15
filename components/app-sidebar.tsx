@@ -227,50 +227,36 @@ export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showSto
           </ul>
         </div>
 
-        <div>
-          <h3 className="text-sm font-bold text-sidebar-foreground mb-2">
+        <div className="opacity-50">
+          <h3 className="text-sm font-bold text-sidebar-foreground mb-1">
             PFAU.NRW
           </h3>
+          <p className="text-xs text-muted-foreground mb-2 italic">In Entwicklung</p>
           <ul className="space-y-1">
             <li>
               <button
-                onClick={onOpenPrognosemeldungen}
-                className={cn(
-                  "flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm transition-colors",
-                  showPrognosemeldungen
-                    ? "bg-emerald-500/10 text-emerald-600"
-                    : "hover:bg-emerald-500/10 hover:text-emerald-600"
-                )}
+                disabled
+                className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm cursor-not-allowed"
               >
-                <BarChart2 className={cn("w-4 h-4 transition-colors", showPrognosemeldungen ? "text-emerald-600" : "")} />
+                <BarChart2 className="w-4 h-4" />
                 Prognosemeldungen
               </button>
             </li>
             <li>
               <button
-                onClick={onOpenAusgleichszuweisung}
-                className={cn(
-                  "flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm transition-colors",
-                  showAusgleichszuweisung
-                    ? "bg-emerald-500/10 text-emerald-600"
-                    : "hover:bg-emerald-500/10 hover:text-emerald-600"
-                )}
+                disabled
+                className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm cursor-not-allowed"
               >
-                <Calculator className={cn("w-4 h-4 transition-colors", showAusgleichszuweisung ? "text-emerald-600" : "")} />
+                <Calculator className="w-4 h-4" />
                 Ausgleichszuweisung
               </button>
             </li>
             <li>
               <button
-                onClick={onOpenUmlagemeldung}
-                className={cn(
-                  "flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm transition-colors",
-                  showUmlagemeldung
-                    ? "bg-emerald-500/10 text-emerald-600"
-                    : "hover:bg-emerald-500/10 hover:text-emerald-600"
-                )}
+                disabled
+                className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm cursor-not-allowed"
               >
-                <ClipboardList className={cn("w-4 h-4 transition-colors", showUmlagemeldung ? "text-emerald-600" : "")} />
+                <ClipboardList className="w-4 h-4" />
                 Umlagemeldung
               </button>
             </li>

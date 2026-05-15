@@ -241,8 +241,25 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
 
   const startGenderOrDiff = (parsed: import("@/lib/excel-import").ParsedEmployee[], hasGenderColumn: boolean) => {
     if (!hasGenderColumn) {
-      setGenderParsed(parsed)
-      setGenderMap(Object.fromEntries(parsed.map((_, i) => [i, ""])))
+      // Fill gender from existing employees where known; only ask for new or gender-less existing ones
+      const normName = (v: string, n: string) => `${v} ${n}`.toLowerCase().trim()
+      const activeEmployees = allEmployees.filter((e) => !e.archiviert)
+      const filledParsed = parsed.map((p) => {
+        if (p.geschlecht) return p
+        const match = activeEmployees.find(
+          (e) => normName(e.vorname, e.nachname) === normName(p.vorname, p.nachname) ||
+                 (p.mitNr && e.mitNr === p.mitNr)
+        )
+        if (match?.geschlecht) return { ...p, geschlecht: match.geschlecht }
+        return p
+      })
+      const needsGender = filledParsed.filter((p) => !p.geschlecht)
+      if (needsGender.length === 0) {
+        runDiff(filledParsed)
+        return
+      }
+      setGenderParsed(filledParsed)
+      setGenderMap(Object.fromEntries(filledParsed.map((p, i) => [i, (p.geschlecht as "männlich" | "weiblich" | "") || ""])))
     } else {
       runDiff(parsed)
     }
@@ -274,9 +291,37 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
         return
       }
       if (ambiguous.length > 0) {
-        setPendingParsed(parsed)
-        setAmbiguousNames(ambiguous)
-        setResolvedNames({})
+        const activeEmployees = allEmployees.filter((e) => !e.archiviert)
+        const norm = (s: string) => s.toLowerCase().trim()
+
+        // Auto-resolve ambiguous entries whose name parts all appear in an existing employee
+        const autoResolved: import("@/lib/excel-import").ParsedEmployee[] = []
+        const stillAmbiguous: import("@/lib/excel-import").AmbiguousName[] = []
+
+        for (const a of ambiguous) {
+          const lowerParts = a.parts.map(norm)
+          const match = a.rest.mitNr
+            ? activeEmployees.find((e) => e.mitNr === a.rest.mitNr)
+            : activeEmployees.find((e) =>
+                lowerParts.includes(norm(e.vorname)) && lowerParts.includes(norm(e.nachname))
+              )
+          if (match) {
+            autoResolved.push({ ...a.rest, vorname: match.vorname, nachname: match.nachname })
+          } else {
+            stillAmbiguous.push(a)
+          }
+        }
+
+        const allParsed = [...parsed, ...autoResolved]
+
+        if (stillAmbiguous.length > 0) {
+          setPendingParsed(allParsed)
+          setAmbiguousNames(stillAmbiguous)
+          setResolvedNames({})
+          return
+        }
+
+        startGenderOrDiff(allParsed, hasGenderColumn)
         return
       }
       startGenderOrDiff(parsed, hasGenderColumn)
@@ -1013,14 +1058,14 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Gender Dialog */}
+      {/* Gender Dialog — only shows employees that still need a gender */}
       <Dialog open={genderParsed.length > 0} onOpenChange={(o) => !o && setGenderParsed([])}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Geschlecht zuweisen</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground mb-3">
-            Die Import-Datei enthält kein Geschlechtsfeld. Bitte für jeden Mitarbeiter festlegen:
+            Für folgende neuen Mitarbeiter ist kein Geschlecht bekannt:
           </p>
           <div className="grid grid-cols-3 gap-1 text-xs font-medium text-muted-foreground px-1 mb-1">
             <span>Name</span>
@@ -1028,43 +1073,58 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
             <span className="text-center">Weiblich</span>
           </div>
           <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
-            {genderParsed.map((p, i) => (
-              <div key={i} className="grid grid-cols-3 items-center gap-1 px-1 py-1 rounded hover:bg-muted/30">
-                <span className="text-sm truncate">{p.nachname}, {p.vorname}</span>
-                <div className="flex justify-center">
-                  <input
-                    type="checkbox"
-                    className="w-4 h-4 accent-blue-600 cursor-pointer"
-                    checked={genderMap[i] === "männlich"}
-                    onChange={() => setGenderMap((prev) => ({
-                      ...prev,
-                      [i]: prev[i] === "männlich" ? "" : "männlich",
-                    }))}
-                  />
+            {genderParsed.map((p, i) => {
+              if (p.geschlecht) return null
+              return (
+                <div key={i} className="grid grid-cols-3 items-center gap-1 px-1 py-1 rounded hover:bg-muted/30">
+                  <span className="text-sm truncate">{p.nachname}, {p.vorname}</span>
+                  <div className="flex justify-center">
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 accent-blue-600 cursor-pointer"
+                      checked={genderMap[i] === "männlich"}
+                      onChange={() => setGenderMap((prev) => ({
+                        ...prev,
+                        [i]: prev[i] === "männlich" ? "" : "männlich",
+                      }))}
+                    />
+                  </div>
+                  <div className="flex justify-center">
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 accent-pink-500 cursor-pointer"
+                      checked={genderMap[i] === "weiblich"}
+                      onChange={() => setGenderMap((prev) => ({
+                        ...prev,
+                        [i]: prev[i] === "weiblich" ? "" : "weiblich",
+                      }))}
+                    />
+                  </div>
                 </div>
-                <div className="flex justify-center">
-                  <input
-                    type="checkbox"
-                    className="w-4 h-4 accent-pink-500 cursor-pointer"
-                    checked={genderMap[i] === "weiblich"}
-                    onChange={() => setGenderMap((prev) => ({
-                      ...prev,
-                      [i]: prev[i] === "weiblich" ? "" : "weiblich",
-                    }))}
-                  />
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
           <div className="flex gap-3 pt-2 border-t border-border mt-3 text-xs text-muted-foreground">
-            <button className="underline" onClick={() => setGenderMap(Object.fromEntries(genderParsed.map((_, i) => [i, "männlich"])))}>Alle männlich</button>
-            <button className="underline" onClick={() => setGenderMap(Object.fromEntries(genderParsed.map((_, i) => [i, "weiblich"])))}>Alle weiblich</button>
-            <button className="underline" onClick={() => setGenderMap(Object.fromEntries(genderParsed.map((_, i) => [i, ""])))}>Zurücksetzen</button>
+            <button className="underline" onClick={() => {
+              const next = { ...genderMap }
+              genderParsed.forEach((p, i) => { if (!p.geschlecht) next[i] = "männlich" })
+              setGenderMap(next)
+            }}>Alle männlich</button>
+            <button className="underline" onClick={() => {
+              const next = { ...genderMap }
+              genderParsed.forEach((p, i) => { if (!p.geschlecht) next[i] = "weiblich" })
+              setGenderMap(next)
+            }}>Alle weiblich</button>
+            <button className="underline" onClick={() => {
+              const next = { ...genderMap }
+              genderParsed.forEach((p, i) => { if (!p.geschlecht) next[i] = "" })
+              setGenderMap(next)
+            }}>Zurücksetzen</button>
           </div>
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setGenderParsed([])}>Abbrechen</Button>
             <Button onClick={() => {
-              const withGender = genderParsed.map((p, i) => ({ ...p, geschlecht: genderMap[i] ?? "" }))
+              const withGender = genderParsed.map((p, i) => ({ ...p, geschlecht: genderMap[i] ?? p.geschlecht ?? "" }))
               setGenderParsed([])
               runDiff(withGender)
             }}>

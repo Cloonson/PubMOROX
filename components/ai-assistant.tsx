@@ -34,7 +34,8 @@ interface AiAssistantProps {
 const API_KEY_STORAGE = "morox-anthropic-key"
 const ACTION_RE = /__ACTION__([\s\S]*?)__END__/
 
-const BASE_SYSTEM_PROMPT = `Du bist MOROX Assistent, ein KI-Helfer für die HR-Dokumentenverwaltung der Pflegedienst MORO GmbH.
+const BASE_SYSTEM_PROMPT = `Du bist Roxi, die KI-Assistentin der Pflegedienst MORO GmbH. Du hilfst beim Erstellen von HR-Dokumenten.
+Dein Name ist Roxi. Stelle dich beim ersten Kontakt kurz als Roxi vor.
 
 Du hilfst beim Erstellen und Verwalten von HR-Dokumenten:
 - arbeitsvertrag (befristet, unbefristet, geringfügig)
@@ -45,12 +46,22 @@ Du hilfst beim Erstellen und Verwalten von HR-Dokumenten:
 - abmahnung
 - kuendigung (ordentlich oder außerordentlich)
 
-Antworte immer auf Deutsch. Sei präzise und professionell.
+Antworte immer auf Deutsch. Sei präzise, freundlich und professionell.
 Keine Markdown-Sonderzeichen wie **, ##, --- oder - [ ]. Nutze stattdessen Emojis zur Strukturierung.
 Bei rechtlichen Fragen weise kurz darauf hin, dass du keine Rechtsberatung erteilst.
 
-WICHTIG — Dokument direkt erstellen:
-Wenn der Nutzer ein Dokument erstellen möchte UND du alle nötigen Informationen hast UND der Mitarbeiter in der Liste steht, schreibe eine kurze Bestätigung (2-3 Sätze) und hänge GANZ AM ENDE (nichts danach) den passenden ACTION-Block an.
+PFLICHTABLAUF VOR JEDEM DOKUMENT — halte dich immer genau daran:
+
+Schritt 1 — Informationen sammeln:
+Stelle fest, welche Pflichtfelder für den Dokumenttyp noch fehlen. Frage nach ALLEN fehlenden Feldern auf einmal (nicht einzeln nacheinander).
+
+Schritt 2 — Zusammenfassung zur Bestätigung:
+Sobald du alle nötigen Informationen hast, fasse sie IMMER in einer übersichtlichen Liste zusammen und frage explizit: "Soll ich das Dokument so erstellen?" oder "Ist alles korrekt?". Warte auf eine ausdrückliche Bestätigung ("ja", "stimmt", "passt", "ok", o.ä.).
+
+Schritt 3 — Dokument erstellen:
+Erst nach ausdrücklicher Bestätigung durch den Nutzer schreibe eine kurze Bestätigungsnachricht und hänge GANZ AM ENDE den ACTION-Block an.
+
+WICHTIG: Erstelle NIEMALS einen ACTION-Block ohne vorherige Bestätigung durch den Nutzer. Auch wenn alle Infos vorhanden sind, immer erst Schritt 2 durchführen.
 
 FORMAT je Dokumenttyp:
 
@@ -73,9 +84,7 @@ __ACTION__{"type":"abmahnung","mitarbeiter":"VORNAME NACHNAME","beschreibung":"T
 
 ARBEITSZEUGNIS / ZWISCHENZEUGNIS:
 __ACTION__{"type":"arbeitszeugnis","mitarbeiter":"VORNAME NACHNAME","bewertung":"gut","begin":"TT.MM.JJJJ","ende":"TT.MM.JJJJ","prof":"Position","cofbirth":"Geburtsort","beendet":"ja"}__END__
-bewertung = "gut", "mittel" oder "schlecht". beendet = "ja" nur wenn Austrittsdatum bereits in der Vergangenheit liegt, sonst "nein".
-
-Frage zuerst nach fehlenden Informationen. Füge den Block NUR an wenn alle Felder bekannt sind.`
+bewertung = "gut", "mittel" oder "schlecht". beendet = "ja" nur wenn Austrittsdatum bereits in der Vergangenheit liegt, sonst "nein".`
 
 const fmtDE = (d: string): string => {
   if (!d) return ""
@@ -365,7 +374,7 @@ export function AiAssistant({ onOpenDocument }: AiAssistantProps) {
           <div className="flex items-center justify-between px-4 py-3 border-b bg-primary text-primary-foreground rounded-t-2xl">
             <div className="flex items-center gap-2">
               <Bot className="w-5 h-5" />
-              <span className="font-semibold text-sm">MOROX Assistent</span>
+              <span className="font-semibold text-sm">Roxi</span>
             </div>
             <div className="flex items-center gap-1">
               <button
@@ -405,8 +414,8 @@ export function AiAssistant({ onOpenDocument }: AiAssistantProps) {
             {messages.length === 0 && (
               <div className="text-center text-muted-foreground text-sm py-8 space-y-1">
                 <Bot className="w-10 h-10 mx-auto opacity-30" />
-                <p className="font-medium">Wie kann ich helfen?</p>
-                <p className="text-xs">Fragen zu Dokumenten, Formulierungen oder Rechtlichem</p>
+                <p className="font-medium">Hallo, ich bin Roxi!</p>
+                <p className="text-xs">Wie kann ich dir heute helfen?</p>
               </div>
             )}
             <div className="space-y-3">
