@@ -61,10 +61,33 @@ interface DocumentFormProps {
 export function DocumentForm({ documentType, onBack, onDocumentCreated, initialData }: DocumentFormProps) {
   const docInfo = documentTypes.find((d) => d.id === documentType)
   const Icon = docInfo?.icon ? iconMap[docInfo.icon as keyof typeof iconMap] : FileText
+  const normalizeInitialData = (data?: Record<string, string>): Record<string, string> => {
+    if (!data) return {}
+    // These fields use type="date" → must be YYYY-MM-DD
+    const dateFields = ["mitarbeiterGeburtsdatum", "eintrittsdatum", "austrittsdatum", "ausbildungsbeginn", "ausbildungsende", "befristungEnde", "erstellungsdatum", "urspruenglichesVertragsdatum", "aenderungAb"]
+    const result: Record<string, string> = { ...data }
+    for (const field of dateFields) {
+      const val = result[field]
+      if (!val) continue
+      const num = Number(val)
+      if (!isNaN(num) && String(val).trim() === String(num)) {
+        // Excel serial → YYYY-MM-DD
+        const ms = (num - 25569) * 86400000
+        const d = new Date(ms)
+        result[field] = `${d.getUTCFullYear()}-${(d.getUTCMonth() + 1).toString().padStart(2, "0")}-${d.getUTCDate().toString().padStart(2, "0")}`
+      } else if (/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(val.trim())) {
+        // DD.MM.YYYY → YYYY-MM-DD
+        const [dd, mm, yyyy] = val.trim().split(".")
+        result[field] = `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`
+      }
+    }
+    return result
+  }
+
   const [formData, setFormData] = useState<Record<string, string | boolean>>({
     erstellungsdatum: new Date().toISOString().split("T")[0],
     befristet: "befristet",
-    ...initialData,
+    ...normalizeInitialData(initialData),
   })
   const [showValidation, setShowValidation] = useState(false)
 
@@ -165,12 +188,17 @@ export function DocumentForm({ documentType, onBack, onDocumentCreated, initialD
 
   const formatDate = (dateString: string) => {
     if (!dateString) return ""
+    // Already in DD.MM.YYYY format → return as-is
+    if (/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(dateString.trim())) return dateString.trim()
+    // ISO YYYY-MM-DD → convert to DD.MM.YYYY
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString.trim())) {
+      const [y, m, d] = dateString.split("-")
+      return `${d}.${m}.${y}`
+    }
+    // Fallback: let JS parse it
     const date = new Date(dateString)
-    return date.toLocaleDateString("de-DE", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    })
+    if (isNaN(date.getTime())) return dateString
+    return date.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -547,11 +575,8 @@ function ArbeitsvertragFields({ formData, updateField }: FieldProps) {
 
   const handleEintrittsdatumChange = (value: string) => {
     updateField("eintrittsdatum", value)
-  }
-
-  const handleEintrittsdatumEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && isBefristet) {
-      const result = calcBefristungEnde(formData.eintrittsdatum as string)
+    if (isBefristet) {
+      const result = calcBefristungEnde(value)
       if (result) updateField("befristungEnde", result)
     }
   }
@@ -599,11 +624,7 @@ function ArbeitsvertragFields({ formData, updateField }: FieldProps) {
             required
             value={(formData.eintrittsdatum as string) || ""}
             onChange={(e) => handleEintrittsdatumChange(e.target.value)}
-            onKeyDown={handleEintrittsdatumEnter}
           />
-          {isBefristet && (
-            <p className="text-xs text-muted-foreground">Enter drücken → Befristet bis wird berechnet</p>
-          )}
         </div>
         {isBefristet && (
           <div className="space-y-2">
@@ -727,13 +748,9 @@ function AushilfsvertragFields({ formData, updateField, isFieldMissing }: FieldP
   // Handle Eintrittsdatum Change
   const handleEintrittsdatumChange = (value: string) => {
     updateField("eintrittsdatum", value)
-    
-    // Wenn befristet und kein befristungEnde gesetzt, automatisch berechnen
-    if (formData.befristet === "befristet" && !formData.befristungEnde) {
+    if (formData.befristet === "befristet") {
       const calculatedEnd = calculateBefristungEnde(value)
-      if (calculatedEnd) {
-        updateField("befristungEnde", calculatedEnd)
-      }
+      if (calculatedEnd) updateField("befristungEnde", calculatedEnd)
     }
   }
 

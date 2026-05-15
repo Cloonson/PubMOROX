@@ -57,7 +57,9 @@ export async function listEmployees(filter: "aktiv" | "archiviert" | "alle" = "a
       : filter === "archiviert"
       ? employees.filter((e) => e.archiviert)
       : employees.filter((e) => !e.archiviert)
-  return filtered.sort((a, b) => a.nachname.localeCompare(b.nachname))
+  return filtered.sort((a, b) =>
+    a.nachname.localeCompare(b.nachname, "de") || a.vorname.localeCompare(b.vorname, "de")
+  )
 }
 
 export async function saveEmployee(employee: Omit<Employee, "id" | "createdAt">): Promise<Employee> {

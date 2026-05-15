@@ -19,6 +19,9 @@ import {
   ArchiveRestore,
   Archive,
   Download,
+  CheckSquare,
+  Square,
+  MinusSquare,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
@@ -108,6 +111,16 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
   const [detailDocs, setDetailDocs] = useState<DocumentLogEntry[]>([])
   const [detailDocsLoading, setDetailDocsLoading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // Multi-Select
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [selectMode, setSelectMode] = useState(false)
+  // Ambiguous names from import
+  const [ambiguousNames, setAmbiguousNames] = useState<import("@/lib/excel-import").AmbiguousName[]>([])
+  const [resolvedNames, setResolvedNames] = useState<Record<number, { vorname: string; nachname: string }>>({})
+  const [pendingParsed, setPendingParsed] = useState<import("@/lib/excel-import").ParsedEmployee[]>([])
+  // Gender dialog
+  const [genderParsed, setGenderParsed] = useState<import("@/lib/excel-import").ParsedEmployee[]>([])
+  const [genderMap, setGenderMap] = useState<Record<number, "männlich" | "weiblich" | "">>({})
 
   const load = async (f: Filter = filter) => {
     setLoading(true)
@@ -226,33 +239,103 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
     })
   }
 
+  const startGenderOrDiff = (parsed: import("@/lib/excel-import").ParsedEmployee[], hasGenderColumn: boolean) => {
+    if (!hasGenderColumn) {
+      setGenderParsed(parsed)
+      setGenderMap(Object.fromEntries(parsed.map((_, i) => [i, ""])))
+    } else {
+      runDiff(parsed)
+    }
+  }
+
+  const runDiff = (parsed: import("@/lib/excel-import").ParsedEmployee[]) => {
+    const activeEmployees = allEmployees.filter((e) => !e.archiviert)
+    const { missing, toAdd, toUpdate } = diffEmployees(activeEmployees, parsed)
+    if (missing.length === 0 && toAdd.length === 0 && toUpdate.length === 0) {
+      toast.success("Liste ist aktuell — keine Änderungen gefunden")
+      return
+    }
+    setImportDiff({
+      missing: missing.map((emp) => ({ emp, archive: false })),
+      toAdd: toAdd.map((p) => ({ parsed: p, add: true })),
+      toUpdate: toUpdate.map((u) => ({ ...u, accept: true })),
+    })
+  }
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     e.target.value = ""
-
     try {
       const buffer = await file.arrayBuffer()
-      const parsed = await parseEmployeesFromExcel(buffer)
-      if (parsed.length === 0) {
+      const { employees: parsed, ambiguous, hasGenderColumn } = await parseEmployeesFromExcel(buffer)
+      if (parsed.length === 0 && ambiguous.length === 0) {
         toast.error("Keine Mitarbeiter in der Datei gefunden")
         return
       }
-      const activeEmployees = allEmployees.filter((e) => !e.archiviert)
-      const { missing, toAdd, toUpdate } = diffEmployees(activeEmployees, parsed)
-
-      if (missing.length === 0 && toAdd.length === 0 && toUpdate.length === 0) {
-        toast.success("Liste ist aktuell — keine Änderungen gefunden")
+      if (ambiguous.length > 0) {
+        setPendingParsed(parsed)
+        setAmbiguousNames(ambiguous)
+        setResolvedNames({})
         return
       }
-
-      setImportDiff({
-        missing: missing.map((emp) => ({ emp, archive: false })),
-        toAdd: toAdd.map((p) => ({ parsed: p, add: true })),
-        toUpdate: toUpdate.map((u) => ({ ...u, accept: true })),
-      })
+      startGenderOrDiff(parsed, hasGenderColumn)
     } catch (err: any) {
       toast.error(`Fehler beim Lesen der Datei: ${err.message}`)
+    }
+  }
+
+  const confirmAmbiguous = () => {
+    const resolved: import("@/lib/excel-import").ParsedEmployee[] = ambiguousNames.map((a) => {
+      const r = resolvedNames[a.rowIndex]
+      return {
+        ...a.rest,
+        nachname: r?.nachname ?? a.parts[0],
+        vorname:  r?.vorname  ?? a.parts.slice(1).join(" "),
+      }
+    })
+    const all = [...pendingParsed, ...resolved]
+    setAmbiguousNames([])
+    setPendingParsed([])
+    // Gender column was absent (otherwise ambiguous wouldn't have been triggered without it)
+    startGenderOrDiff(all, all.some((p) => p.geschlecht !== ""))
+  }
+
+  // Multi-Select handlers
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  const selectAll = () => setSelectedIds(new Set(filtered.map((e) => e.id)))
+  const clearSelection = () => { setSelectedIds(new Set()); setSelectMode(false) }
+
+  const handleBulkArchive = async () => {
+    try {
+      for (const id of selectedIds) {
+        await archiveEmployee(id)
+      }
+      toast.success(`${selectedIds.size} Mitarbeiter archiviert`)
+      clearSelection()
+      load()
+    } catch {
+      toast.error("Fehler beim Archivieren")
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    try {
+      for (const id of selectedIds) {
+        await deleteEmployee(id)
+      }
+      toast.success(`${selectedIds.size} Mitarbeiter gelöscht`)
+      clearSelection()
+      load()
+    } catch {
+      toast.error("Fehler beim Löschen")
     }
   }
 
@@ -336,11 +419,13 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
     </div>
   )
 
-  const filtered = employees.filter((e) =>
-    `${e.vorname} ${e.nachname} ${e.position} ${e.mitNr}`
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  )
+  const filtered = employees
+    .filter((e) =>
+      `${e.vorname} ${e.nachname} ${e.position} ${e.mitNr}`
+        .toLowerCase()
+        .includes(search.toLowerCase())
+    )
+    .sort((a, b) => a.nachname.localeCompare(b.nachname, "de") || a.vorname.localeCompare(b.vorname, "de"))
 
   const docGroups = [
     { label: "Verträge", types: documentTypes.filter((d) => d.category === "vertraege") },
@@ -376,6 +461,14 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
           <Button variant="outline" className="gap-2" onClick={() => fileInputRef.current?.click()}>
             <Upload className="w-4 h-4" />
             Importieren
+          </Button>
+          <Button
+            variant={selectMode ? "default" : "outline"}
+            className="gap-2"
+            onClick={() => { setSelectMode(!selectMode); setSelectedIds(new Set()) }}
+          >
+            <CheckSquare className="w-4 h-4" />
+            Auswahl
           </Button>
           <Button onClick={openAdd} className="gap-2">
             <Plus className="w-4 h-4" />
@@ -429,14 +522,52 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
           </p>
         </div>
       ) : (
+        <>
+        {/* Bulk-Aktionsleiste */}
+        {selectMode && (
+          <div className="flex items-center gap-3 mb-3 px-3 py-2 bg-primary/5 border border-primary/20 rounded-lg text-sm">
+            <button onClick={selectedIds.size === filtered.length ? clearSelection : selectAll} className="flex items-center gap-1.5 text-primary font-medium hover:opacity-80">
+              {selectedIds.size === filtered.length
+                ? <MinusSquare className="w-4 h-4" />
+                : <Square className="w-4 h-4" />}
+              {selectedIds.size === filtered.length ? "Alle abwählen" : "Alle auswählen"}
+            </button>
+            {selectedIds.size > 0 && (
+              <>
+                <span className="text-muted-foreground">{selectedIds.size} ausgewählt</span>
+                <div className="ml-auto flex gap-2">
+                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={handleBulkArchive}>
+                    <Archive className="w-3 h-3" />
+                    Archivieren
+                  </Button>
+                  <Button size="sm" variant="destructive" className="h-7 text-xs gap-1" onClick={handleBulkDelete}>
+                    <Trash2 className="w-3 h-3" />
+                    Löschen
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         <div className="space-y-2">
           {filtered.map((emp) => (
-            <Card key={emp.id} className={`overflow-hidden ${emp.archiviert ? "opacity-60" : ""}`}>
+            <Card key={emp.id} className={`overflow-hidden ${emp.archiviert ? "opacity-60" : ""} ${selectMode && selectedIds.has(emp.id) ? "ring-2 ring-primary" : ""}`}>
               <CardHeader className="p-4 pb-3">
                 <div className="flex items-center justify-between">
+                  {selectMode && (
+                    <button
+                      className="mr-2 shrink-0"
+                      onClick={() => toggleSelect(emp.id)}
+                    >
+                      {selectedIds.has(emp.id)
+                        ? <CheckSquare className="w-5 h-5 text-primary" />
+                        : <Square className="w-5 h-5 text-muted-foreground" />}
+                    </button>
+                  )}
                   <button
                     className="flex items-center gap-3 flex-1 text-left hover:opacity-80 transition-opacity"
-                    onClick={() => openDetail(emp)}
+                    onClick={() => selectMode ? toggleSelect(emp.id) : openDetail(emp)}
                   >
                     <div className="w-9 h-9 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-600 font-semibold text-sm shrink-0">
                       {emp.vorname[0]}{emp.nachname[0]}
@@ -539,6 +670,7 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
             </Card>
           ))}
         </div>
+        </>
       )}
 
       {/* Edit/Add Dialog */}
@@ -572,8 +704,8 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
               {field("nachname", "Nachname *", "text", "Mustermann")}
             </div>
             <div className="grid grid-cols-2 gap-3">
-              {field("geburtsdatum", "Geburtsdatum", "date")}
-              {field("eintrittsdatum", "Eintrittsdatum", "date")}
+              {field("geburtsdatum", "Geburtsdatum", "text", "TT.MM.JJJJ")}
+              {field("eintrittsdatum", "Eintrittsdatum", "text", "TT.MM.JJJJ")}
             </div>
             <div className="grid grid-cols-2 gap-3">
               {field("position", "Tätigkeit", "text", "Pflegefachkraft")}
@@ -877,6 +1009,111 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setImportDiff(null)}>Abbrechen</Button>
             <Button onClick={confirmImport}>Import bestätigen</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Gender Dialog */}
+      <Dialog open={genderParsed.length > 0} onOpenChange={(o) => !o && setGenderParsed([])}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Geschlecht zuweisen</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground mb-3">
+            Die Import-Datei enthält kein Geschlechtsfeld. Bitte für jeden Mitarbeiter festlegen:
+          </p>
+          <div className="grid grid-cols-3 gap-1 text-xs font-medium text-muted-foreground px-1 mb-1">
+            <span>Name</span>
+            <span className="text-center">Männlich</span>
+            <span className="text-center">Weiblich</span>
+          </div>
+          <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
+            {genderParsed.map((p, i) => (
+              <div key={i} className="grid grid-cols-3 items-center gap-1 px-1 py-1 rounded hover:bg-muted/30">
+                <span className="text-sm truncate">{p.nachname}, {p.vorname}</span>
+                <div className="flex justify-center">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 accent-blue-600 cursor-pointer"
+                    checked={genderMap[i] === "männlich"}
+                    onChange={() => setGenderMap((prev) => ({
+                      ...prev,
+                      [i]: prev[i] === "männlich" ? "" : "männlich",
+                    }))}
+                  />
+                </div>
+                <div className="flex justify-center">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 accent-pink-500 cursor-pointer"
+                    checked={genderMap[i] === "weiblich"}
+                    onChange={() => setGenderMap((prev) => ({
+                      ...prev,
+                      [i]: prev[i] === "weiblich" ? "" : "weiblich",
+                    }))}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-3 pt-2 border-t border-border mt-3 text-xs text-muted-foreground">
+            <button className="underline" onClick={() => setGenderMap(Object.fromEntries(genderParsed.map((_, i) => [i, "männlich"])))}>Alle männlich</button>
+            <button className="underline" onClick={() => setGenderMap(Object.fromEntries(genderParsed.map((_, i) => [i, "weiblich"])))}>Alle weiblich</button>
+            <button className="underline" onClick={() => setGenderMap(Object.fromEntries(genderParsed.map((_, i) => [i, ""])))}>Zurücksetzen</button>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setGenderParsed([])}>Abbrechen</Button>
+            <Button onClick={() => {
+              const withGender = genderParsed.map((p, i) => ({ ...p, geschlecht: genderMap[i] ?? "" }))
+              setGenderParsed([])
+              runDiff(withGender)
+            }}>
+              Weiter
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Ambiguous Names Dialog */}
+      <Dialog open={ambiguousNames.length > 0} onOpenChange={(o) => !o && setAmbiguousNames([])}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Namen klären</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground mb-4">
+            Bei folgenden Namen konnte Vor- und Nachname nicht automatisch erkannt werden. Bitte zuweisen:
+          </p>
+          <div className="space-y-4 max-h-80 overflow-y-auto">
+            {ambiguousNames.map((a) => {
+              const r = resolvedNames[a.rowIndex] ?? { nachname: a.parts[0], vorname: a.parts.slice(1).join(" ") }
+              return (
+                <div key={a.rowIndex} className="border border-border rounded-md p-3 space-y-2">
+                  <p className="text-sm font-medium text-foreground">„{a.fullName}"</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Vorname</label>
+                      <Input
+                        value={r.vorname}
+                        onChange={(e) => setResolvedNames((prev) => ({ ...prev, [a.rowIndex]: { ...r, vorname: e.target.value } }))}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Nachname</label>
+                      <Input
+                        value={r.nachname}
+                        onChange={(e) => setResolvedNames((prev) => ({ ...prev, [a.rowIndex]: { ...r, nachname: e.target.value } }))}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setAmbiguousNames([])}>Abbrechen</Button>
+            <Button onClick={confirmAmbiguous}>Weiter</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

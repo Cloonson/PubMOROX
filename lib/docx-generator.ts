@@ -87,14 +87,21 @@ async function saveToOutputFolder(
       
       // Speichere im Documents/MOROX/files Ordner
       await writeFile(`MOROX/files/${safeFilename}`, uint8Array, { baseDir: BaseDirectory.Document })
-      
-      console.log(`✅ Datei dauerhaft gespeichert in Documents/MOROX/files/${safeFilename}`)
+
       if (meta) await addDocumentLog({ ...meta, filename: safeFilename })
+
+      // Datei direkt öffnen
+      try {
+        const { openPath } = await import("@tauri-apps/plugin-opener")
+        const fullPath = await join(docPath, "MOROX", "files", safeFilename)
+        await openPath(fullPath)
+      } catch {
+        browserDownload(blob, safeFilename)
+      }
     } catch (error: any) {
       const msg = error?.message || String(error)
       console.error("❌ Tauri Save Error:", error)
       import("sonner").then(({ toast }) => toast.error("Speicherfehler: " + msg))
-    } finally {
       browserDownload(blob, safeFilename)
     }
   } else {

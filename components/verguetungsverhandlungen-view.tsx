@@ -161,6 +161,7 @@ export function VerguetungsverhandlungenView() {
                     <th className="text-left px-4 py-2 font-medium text-muted-foreground w-16">Nr.</th>
                     <th className="text-left px-4 py-2 font-medium text-muted-foreground">Komplex</th>
                     <th className="text-left px-4 py-2 font-medium text-muted-foreground text-xs">Positionsnummer</th>
+                    <th className="text-left px-4 py-2 font-medium text-muted-foreground w-24">Einheit</th>
                     <th className="text-right px-4 py-2 font-medium text-muted-foreground">Anzahl</th>
                   </tr>
                 </thead>
@@ -191,14 +192,24 @@ export function VerguetungsverhandlungenView() {
                       ...ungrouped.map(({ pos, anzahl }) => ({ info: null, positions: [pos], anzahl })),
                     ]
 
-                    return rows.map(({ info, positions, anzahl }) => (
-                      <tr key={positions.join(",")} className="border-b border-border last:border-0 hover:bg-muted/30">
-                        <td className="px-4 py-2 font-mono font-semibold text-xs text-primary">{info?.pCode ?? "—"}</td>
-                        <td className="px-4 py-2">{info?.name ?? <span className="text-muted-foreground italic">unbekannt</span>}</td>
-                        <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{positions.join(", ")}</td>
-                        <td className="px-4 py-2 text-right font-medium">{anzahl}</td>
-                      </tr>
-                    ))
+                    return rows.map(({ info, positions, anzahl }) => {
+                      const unit = info?.unit ?? "Anzahl"
+                      const unitColor =
+                        unit === "Minuten" ? "bg-blue-500/10 text-blue-700" :
+                        unit === "Besuch"  ? "bg-green-500/10 text-green-700" :
+                        "bg-muted text-muted-foreground"
+                      return (
+                        <tr key={positions.join(",")} className="border-b border-border last:border-0 hover:bg-muted/30">
+                          <td className="px-4 py-2 font-mono font-semibold text-xs text-primary">{info?.pCode ?? "—"}</td>
+                          <td className="px-4 py-2">{info?.name ?? <span className="text-muted-foreground italic">unbekannt</span>}</td>
+                          <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{positions.join(", ")}</td>
+                          <td className="px-4 py-2">
+                            <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${unitColor}`}>{unit}</span>
+                          </td>
+                          <td className="px-4 py-2 text-right font-medium">{anzahl.toLocaleString("de-DE")}</td>
+                        </tr>
+                      )
+                    })
                   })()}
                 </tbody>
               </table>

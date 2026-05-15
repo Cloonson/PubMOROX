@@ -16,34 +16,35 @@ interface PositionInfo {
   name: string
   row: number
   sortKey: number
+  unit: "Anzahl" | "Minuten" | "Besuch"
 }
 
 // Positionsnummer → P-code info + Excel row in column F
 const POSITION_INFO: Record<string, PositionInfo> = {
-  "1010001": { pCode: "P01",  name: "Ganzwaschung",                          row: 35, sortKey:  1 },
-  "1010002": { pCode: "P02",  name: "Teilwaschung",                          row: 36, sortKey:  2 },
-  "1010003": { pCode: "P03",  name: "Ausscheidungen",                        row: 37, sortKey:  3 },
-  "1010004": { pCode: "P04",  name: "Selbst. Nahrungsaufnahme",              row: 38, sortKey:  4 },
-  "1010005": { pCode: "P05",  name: "Hilfe bei der Nahrungsaufnahme",        row: 39, sortKey:  5 },
-  "1010006": { pCode: "P06",  name: "Sondenernährung",                       row: 40, sortKey:  6 },
-  "1010011": { pCode: "P11",  name: "Einkaufen",                             row: 45, sortKey: 11 },
-  "1010012": { pCode: "P12",  name: "Zubereiten von warmen Mahlzeiten",      row: 46, sortKey: 12 },
-  "1010013": { pCode: "P13",  name: "Reinigung der Wohnung",                 row: 47, sortKey: 13 },
-  "1010014": { pCode: "P14",  name: "Waschen u. Pflegen der Wäsche",        row: 48, sortKey: 14 },
-  "1010015": { pCode: "P15",  name: "Hausbesuchspauschale",                  row: 49, sortKey: 15 },
-  "7010015": { pCode: "P15",  name: "Hausbesuchspauschale",                  row: 49, sortKey: 15 },
-  "0101015a": { pCode: "P15a", name: "Erhöhte Hausbesuchspauschale",        row: 50, sortKey: 15.5 },
-  "9010017": { pCode: "P17",  name: "Beratungsbesuch (§37 Abs. 3)",          row: 53, sortKey: 17 },
-  "1010019": { pCode: "P19",  name: "Große Grundpflege",                     row: 55, sortKey: 19 },
-  "1010021": { pCode: "P21",  name: "Kleine Grundpflege",                    row: 57, sortKey: 21 },
-  "7010021": { pCode: "P21",  name: "Kleine Grundpflege",                    row: 57, sortKey: 21 },
-  "1010022": { pCode: "P22",  name: "Große hauswirtschaftliche Versorgung", row: 58, sortKey: 22 },
-  "1010023": { pCode: "P23",  name: "Große Grundpflege m. Lagern",           row: 59, sortKey: 23 },
-  "1010025": { pCode: "P25",  name: "Kleine Grundpflege m. Lagern",          row: 61, sortKey: 25 },
-  "7010025": { pCode: "P25",  name: "Kleine Grundpflege m. Lagern",          row: 61, sortKey: 25 },
-  "1010028": { pCode: "P28",  name: "Kleine pflegerische Hilfestellung 2",   row: 64, sortKey: 28 },
-  "1010029": { pCode: "P29",  name: "Kleine pflegerische Hilfestellung 3",   row: 65, sortKey: 29 },
-  "1010030": { pCode: "P30",  name: "Kleine pflegerische Hilfestellung 4",   row: 66, sortKey: 30 },
+  "1010001": { pCode: "P01",  name: "Ganzwaschung",                          row: 35, sortKey:  1,    unit: "Minuten" },
+  "1010002": { pCode: "P02",  name: "Teilwaschung",                          row: 36, sortKey:  2,    unit: "Minuten" },
+  "1010003": { pCode: "P03",  name: "Ausscheidungen",                        row: 37, sortKey:  3,    unit: "Minuten" },
+  "1010004": { pCode: "P04",  name: "Selbst. Nahrungsaufnahme",              row: 38, sortKey:  4,    unit: "Minuten" },
+  "1010005": { pCode: "P05",  name: "Hilfe bei der Nahrungsaufnahme",        row: 39, sortKey:  5,    unit: "Minuten" },
+  "1010006": { pCode: "P06",  name: "Sondenernährung",                       row: 40, sortKey:  6,    unit: "Minuten" },
+  "1010011": { pCode: "P11",  name: "Einkaufen",                             row: 45, sortKey: 11,    unit: "Minuten" },
+  "1010012": { pCode: "P12",  name: "Zubereiten von warmen Mahlzeiten",      row: 46, sortKey: 12,    unit: "Minuten" },
+  "1010013": { pCode: "P13",  name: "Reinigung der Wohnung",                 row: 47, sortKey: 13,    unit: "Minuten" },
+  "1010014": { pCode: "P14",  name: "Waschen u. Pflegen der Wäsche",         row: 48, sortKey: 14,    unit: "Minuten" },
+  "1010015": { pCode: "P15",  name: "Hausbesuchspauschale",                  row: 49, sortKey: 15,    unit: "Besuch"  },
+  "7010015": { pCode: "P15",  name: "Hausbesuchspauschale",                  row: 49, sortKey: 15,    unit: "Besuch"  },
+  "0101015a": { pCode: "P15a", name: "Erhöhte Hausbesuchspauschale",         row: 50, sortKey: 15.5,  unit: "Besuch"  },
+  "9010017": { pCode: "P17",  name: "Beratungsbesuch (§37 Abs. 3)",          row: 53, sortKey: 17,    unit: "Besuch"  },
+  "1010019": { pCode: "P19",  name: "Große Grundpflege",                     row: 55, sortKey: 19,    unit: "Minuten" },
+  "1010021": { pCode: "P21",  name: "Kleine Grundpflege",                    row: 57, sortKey: 21,    unit: "Minuten" },
+  "7010021": { pCode: "P21",  name: "Kleine Grundpflege",                    row: 57, sortKey: 21,    unit: "Minuten" },
+  "1010022": { pCode: "P22",  name: "Große hauswirtschaftliche Versorgung",  row: 58, sortKey: 22,    unit: "Minuten" },
+  "1010023": { pCode: "P23",  name: "Große Grundpflege m. Lagern",           row: 59, sortKey: 23,    unit: "Minuten" },
+  "1010025": { pCode: "P25",  name: "Kleine Grundpflege m. Lagern",          row: 61, sortKey: 25,    unit: "Minuten" },
+  "7010025": { pCode: "P25",  name: "Kleine Grundpflege m. Lagern",          row: 61, sortKey: 25,    unit: "Minuten" },
+  "1010028": { pCode: "P28",  name: "Kleine pflegerische Hilfestellung 2",   row: 64, sortKey: 28,    unit: "Minuten" },
+  "1010029": { pCode: "P29",  name: "Kleine pflegerische Hilfestellung 3",   row: 65, sortKey: 29,    unit: "Minuten" },
+  "1010030": { pCode: "P30",  name: "Kleine pflegerische Hilfestellung 4",   row: 66, sortKey: 30,    unit: "Minuten" },
 }
 
 // Positionsnummer → Excel row in column F (1-indexed)

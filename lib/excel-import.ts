@@ -42,38 +42,128 @@ function anredeToGeschlecht(anrede: string): string {
   return ""
 }
 
-export async function parseEmployeesFromExcel(buffer: ArrayBuffer): Promise<ParsedEmployee[]> {
+export interface AmbiguousName {
+  rowIndex: number
+  fullName: string
+  parts: string[]
+  rest: Omit<ParsedEmployee, "vorname" | "nachname">
+}
+
+export interface ParseEmployeesResult {
+  employees: ParsedEmployee[]
+  ambiguous: AmbiguousName[]
+  hasGenderColumn: boolean
+}
+
+function splitName(full: string): { vorname: string; nachname: string } | null {
+  const parts = full.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 2) return { nachname: parts[0], vorname: parts[1] }
+  if (parts.length === 1) return { nachname: parts[0], vorname: "" }
+  return null // ambiguous — 3+ parts, Dialog fragt nach
+}
+
+function fmtDate(val: unknown): string {
+  if (!val && val !== 0) return ""
+  if (val instanceof Date) {
+    const d = val.getDate().toString().padStart(2, "0")
+    const m = (val.getMonth() + 1).toString().padStart(2, "0")
+    const y = val.getFullYear()
+    return `${d}.${m}.${y}`
+  }
+  if (typeof val === "number") {
+    // Excel serial date → JS Date (Excel epoch = 1899-12-30)
+    const ms = (val - 25569) * 86400000
+    const d = new Date(ms)
+    const dd = d.getUTCDate().toString().padStart(2, "0")
+    const mm = (d.getUTCMonth() + 1).toString().padStart(2, "0")
+    const yy = d.getUTCFullYear()
+    return `${dd}.${mm}.${yy}`
+  }
+  return clean(val)
+}
+
+export async function parseEmployeesFromExcel(buffer: ArrayBuffer): Promise<ParseEmployeesResult> {
   const XLSX = await import("xlsx")
-  const wb = XLSX.read(buffer, { type: "array" })
+  const wb = XLSX.read(buffer, { type: "array", cellDates: true })
   const ws = wb.Sheets[wb.SheetNames[0]]
-  const rows: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1 }) as unknown[][]
+  // raw:true so we get actual values (incl. Date objects for date cells)
+  const rows: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true }) as unknown[][]
 
-  if (rows.length < 2) return []
+  if (rows.length < 2) return { employees: [], ambiguous: [], hasGenderColumn: false }
 
-  return rows
-    .slice(1)
-    .filter((r) => r[0] && (r[1] || r[2]))
-    .map((r) => {
-      const addr = parseAddress(r[12])
-      return {
-        mitNr: clean(r[0]),
-        geschlecht: anredeToGeschlecht(clean(r[1])),
-        vorname: clean(r[2]),
-        nachname: clean(r[3]),
-        geburtsdatum: clean(r[4]),
-        krankenkasse: clean(r[5]),
-        position: clean(r[6]),
-        beschaeftigung: clean(r[7]),
-        lbnr: clean(r[8]),
-        telefon: clean(r[9]),
-        mobil: clean(r[10]),
-        email: clean(r[11]),
-        strasse: addr.strasse,
-        plz: addr.plz,
-        ort: addr.ort,
-        eintrittsdatum: clean(r[13]),
+  const header = (rows[0] as unknown[]).map((h) => String(h ?? "").toLowerCase().trim())
+
+  const col = (keywords: string[]): number => {
+    for (const kw of keywords) {
+      const i = header.findIndex((h) => h.includes(kw))
+      if (i >= 0) return i
+    }
+    return -1
+  }
+
+  // Separate Vorname/Nachname columns take priority; fall back to combined Name
+  const colVorname  = col(["vorname", "first name", "firstname"])
+  const colNachname = col(["nachname", "familienname", "last name", "lastname"])
+  const colName     = colVorname < 0 && colNachname < 0 ? col(["name"]) : -1
+
+  const colAnrede      = col(["anrede", "titel", "geschlecht", "gender"])
+  const colMitNr       = col(["mit.nr", "mitarb", "personal-nr", "personalnr", "mitarbeiternr", "nr."])
+  const colGeburtsdatum= col(["geburtsdatum", "geburtstag", "geb.", "birthday"])
+  const colKrankenkasse= col(["krankenkasse", "kasse"])
+  const colPosition    = col(["tätigkeit", "tatigkeit", "taetigkeit", "position", "funktion", "beruf"])
+  const colBeschaeft   = col(["beschäftigungsverhältnis", "beschäftigungsverh", "beschäftigung", "beschaeftigung", "anstellung", "arbeitszeit"])
+  const colLbnr        = col(["lbnr", "lb-nr", "lb nr"])
+  const colTelefon     = col(["telefon", "tel.", "festnetz", "phone"])
+  const colMobil       = col(["mobil", "handy", "mobile"])
+  const colEmail       = col(["e-mail", "email", "mail"])
+  const colAdresse     = col(["adresse", "anschrift", "address", "straße", "strasse"])
+  const colEintritt    = col(["eintrittsdatum", "eintritt", "start", "beginn"])
+
+  const g   = (r: unknown[], c: number) => c >= 0 ? clean(r[c]) : ""
+  const gDt = (r: unknown[], c: number) => c >= 0 ? fmtDate(r[c]) : ""
+
+  const employees: ParsedEmployee[] = []
+  const ambiguous: AmbiguousName[] = []
+
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i] as unknown[]
+    if (!r || r.every((c) => c === null || c === undefined || c === "")) continue
+
+    const addr = colAdresse >= 0 ? parseAddress(r[colAdresse]) : { strasse: "", plz: "", ort: "" }
+
+    const rest: Omit<ParsedEmployee, "vorname" | "nachname"> = {
+      mitNr:          g(r, colMitNr),
+      geschlecht:     colAnrede >= 0 ? anredeToGeschlecht(g(r, colAnrede)) : "",
+      geburtsdatum:   gDt(r, colGeburtsdatum),
+      krankenkasse:   g(r, colKrankenkasse),
+      position:       g(r, colPosition),
+      beschaeftigung: g(r, colBeschaeft),
+      lbnr:           g(r, colLbnr),
+      telefon:        g(r, colTelefon),
+      mobil:          g(r, colMobil),
+      email:          g(r, colEmail),
+      strasse:        addr.strasse,
+      plz:            addr.plz,
+      ort:            addr.ort,
+      eintrittsdatum: gDt(r, colEintritt),
+    }
+
+    if (colName >= 0) {
+      const full = clean(r[colName])
+      const split = splitName(full)
+      if (split) {
+        employees.push({ ...rest, vorname: split.vorname, nachname: split.nachname })
+      } else if (full) {
+        ambiguous.push({ rowIndex: i, fullName: full, parts: full.trim().split(/\s+/), rest })
       }
-    })
+    } else {
+      const vorname  = g(r, colVorname)
+      const nachname = g(r, colNachname)
+      if (vorname || nachname) employees.push({ ...rest, vorname, nachname })
+    }
+  }
+
+  return { employees, ambiguous, hasGenderColumn: colAnrede >= 0 }
 }
 
 export function diffEmployees(

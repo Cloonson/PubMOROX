@@ -7,6 +7,9 @@ import { DocumentForm } from "@/components/document-form"
 import { StorageView } from "@/components/storage-view"
 import { MitarbeiterView } from "@/components/mitarbeiter-view"
 import { VerguetungsverhandlungenView } from "@/components/verguetungsverhandlungen-view"
+import { PrognosemeldungView } from "@/components/prognosemeldung-view"
+import { AusgleichszuweisungView } from "@/components/ausgleichszuweisung-view"
+import { UmlagemeldungView } from "@/components/umlagemeldung-view"
 import { SettingsDialog } from "@/components/settings-dialog"
 import { AiAssistant } from "@/components/ai-assistant"
 import type { DocumentType } from "@/lib/types"
@@ -16,12 +19,18 @@ export default function Home() {
   const [showStorage, setShowStorage] = useState(false)
   const [showMitarbeiter, setShowMitarbeiter] = useState(false)
   const [showVerguetung, setShowVerguetung] = useState(false)
+  const [showPrognosemeldungen, setShowPrognosemeldungen] = useState(false)
+  const [showAusgleichszuweisung, setShowAusgleichszuweisung] = useState(false)
+  const [showUmlagemeldung, setShowUmlagemeldung] = useState(false)
   const [documentInitialData, setDocumentInitialData] = useState<Record<string, string> | undefined>()
 
   const resetViews = () => {
     setShowStorage(false)
     setShowMitarbeiter(false)
     setShowVerguetung(false)
+    setShowPrognosemeldungen(false)
+    setShowAusgleichszuweisung(false)
+    setShowUmlagemeldung(false)
   }
 
   const handleSelectDocument = (type: DocumentType) => {
@@ -54,6 +63,24 @@ export default function Home() {
     setShowVerguetung(true)
   }
 
+  const handleOpenPrognosemeldungen = () => {
+    setActiveDocument(null)
+    resetViews()
+    setShowPrognosemeldungen(true)
+  }
+
+  const handleOpenAusgleichszuweisung = () => {
+    setActiveDocument(null)
+    resetViews()
+    setShowAusgleichszuweisung(true)
+  }
+
+  const handleOpenUmlagemeldung = () => {
+    setActiveDocument(null)
+    resetViews()
+    setShowUmlagemeldung(true)
+  }
+
   const handlePrintFromEmployee = (type: DocumentType, data: Record<string, string>) => {
     setDocumentInitialData(data)
     setActiveDocument(type)
@@ -79,17 +106,35 @@ export default function Home() {
         onOpenMitarbeiter={handleOpenMitarbeiter}
         showVerguetung={showVerguetung}
         onOpenVerguetung={handleOpenVerguetung}
+        showPrognosemeldungen={showPrognosemeldungen}
+        onOpenPrognosemeldungen={handleOpenPrognosemeldungen}
+        showAusgleichszuweisung={showAusgleichszuweisung}
+        onOpenAusgleichszuweisung={handleOpenAusgleichszuweisung}
+        showUmlagemeldung={showUmlagemeldung}
+        onOpenUmlagemeldung={handleOpenUmlagemeldung}
       />
       <main className="flex-1 overflow-auto relative">
-        {activeDocument === null && !showStorage && !showMitarbeiter && !showVerguetung && <SettingsDialog />}
+        {activeDocument === null && !showStorage && !showMitarbeiter && !showVerguetung && !showPrognosemeldungen && !showAusgleichszuweisung && !showUmlagemeldung && <SettingsDialog />}
         {showStorage ? (
           <StorageView />
         ) : showMitarbeiter ? (
           <MitarbeiterView onPrintDocument={handlePrintFromEmployee} />
         ) : showVerguetung ? (
           <VerguetungsverhandlungenView />
+        ) : showPrognosemeldungen ? (
+          <PrognosemeldungView />
+        ) : showAusgleichszuweisung ? (
+          <AusgleichszuweisungView />
+        ) : showUmlagemeldung ? (
+          <UmlagemeldungView />
         ) : activeDocument === null ? (
-          <Dashboard onSelectDocument={handleSelectDocument} />
+          <Dashboard
+            onSelectDocument={handleSelectDocument}
+            onOpenVerguetung={handleOpenVerguetung}
+            onOpenPrognosemeldungen={handleOpenPrognosemeldungen}
+            onOpenAusgleichszuweisung={handleOpenAusgleichszuweisung}
+            onOpenUmlagemeldung={handleOpenUmlagemeldung}
+          />
         ) : (
           <DocumentForm
             documentType={activeDocument}

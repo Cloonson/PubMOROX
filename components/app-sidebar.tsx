@@ -15,6 +15,9 @@ import {
   FolderOpen,
   Users,
   TrendingUp,
+  BarChart2,
+  Calculator,
+  ClipboardList,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { documentTypes, type DocumentType } from "@/lib/types"
@@ -41,9 +44,15 @@ interface AppSidebarProps {
   onOpenMitarbeiter?: () => void
   showVerguetung?: boolean
   onOpenVerguetung?: () => void
+  showPrognosemeldungen?: boolean
+  onOpenPrognosemeldungen?: () => void
+  showAusgleichszuweisung?: boolean
+  onOpenAusgleichszuweisung?: () => void
+  showUmlagemeldung?: boolean
+  onOpenUmlagemeldung?: () => void
 }
 
-export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showStorage, onOpenStorage, showMitarbeiter, onOpenMitarbeiter, showVerguetung, onOpenVerguetung }: AppSidebarProps) {
+export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showStorage, onOpenStorage, showMitarbeiter, onOpenMitarbeiter, showVerguetung, onOpenVerguetung, showPrognosemeldungen, onOpenPrognosemeldungen, showAusgleichszuweisung, onOpenAusgleichszuweisung, showUmlagemeldung, onOpenUmlagemeldung }: AppSidebarProps) {
   const vertraege = documentTypes.filter((d) => d.category === "vertraege")
   const zeugnisse = documentTypes.filter((d) => d.category === "zeugnisse")
   const disziplinar = documentTypes.filter((d) => d.category === "disziplinar")
@@ -52,12 +61,12 @@ export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showSto
   return (
     <aside className="w-64 min-h-screen bg-sidebar-background text-sidebar-foreground flex flex-col">
       <div className="p-4 border-b border-sidebar-border">
-        <button onClick={onGoHome} className="flex items-center gap-3 w-full">
+        <button onClick={onGoHome} className="flex justify-center w-full">
           <Image
-            src="/moro.png"
+            src="/moro-logo.png"
             alt="Pflegedienst MORO Logo"
-            width={300}
-            height={100}
+            width={110}
+            height={85}
             className="object-contain"
           />
         </button>
@@ -69,7 +78,7 @@ export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showSto
             onClick={onGoHome}
             className={cn(
               "flex items-center gap-3 w-full px-3 py-2 rounded-md text-sm font-medium transition-colors",
-              activeDocument === null && !showStorage && !showMitarbeiter && !showVerguetung
+              activeDocument === null && !showStorage && !showMitarbeiter && !showVerguetung && !showPrognosemeldungen && !showAusgleichszuweisung && !showUmlagemeldung
                 ? "bg-sidebar-accent text-sidebar-accent-foreground"
                 : "hover:bg-sidebar-accent/50"
             )}
@@ -213,6 +222,56 @@ export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showSto
               >
                 <TrendingUp className={cn("w-4 h-4 transition-colors", showVerguetung ? "text-purple-500" : "")} />
                 Berechnungsschema
+              </button>
+            </li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-bold text-sidebar-foreground mb-2">
+            PFAU.NRW
+          </h3>
+          <ul className="space-y-1">
+            <li>
+              <button
+                onClick={onOpenPrognosemeldungen}
+                className={cn(
+                  "flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm transition-colors",
+                  showPrognosemeldungen
+                    ? "bg-emerald-500/10 text-emerald-600"
+                    : "hover:bg-emerald-500/10 hover:text-emerald-600"
+                )}
+              >
+                <BarChart2 className={cn("w-4 h-4 transition-colors", showPrognosemeldungen ? "text-emerald-600" : "")} />
+                Prognosemeldungen
+              </button>
+            </li>
+            <li>
+              <button
+                onClick={onOpenAusgleichszuweisung}
+                className={cn(
+                  "flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm transition-colors",
+                  showAusgleichszuweisung
+                    ? "bg-emerald-500/10 text-emerald-600"
+                    : "hover:bg-emerald-500/10 hover:text-emerald-600"
+                )}
+              >
+                <Calculator className={cn("w-4 h-4 transition-colors", showAusgleichszuweisung ? "text-emerald-600" : "")} />
+                Ausgleichszuweisung
+              </button>
+            </li>
+            <li>
+              <button
+                onClick={onOpenUmlagemeldung}
+                className={cn(
+                  "flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm transition-colors",
+                  showUmlagemeldung
+                    ? "bg-emerald-500/10 text-emerald-600"
+                    : "hover:bg-emerald-500/10 hover:text-emerald-600"
+                )}
+              >
+                <ClipboardList className={cn("w-4 h-4 transition-colors", showUmlagemeldung ? "text-emerald-600" : "")} />
+                Umlagemeldung
               </button>
             </li>
           </ul>
