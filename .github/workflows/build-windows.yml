@@ -1,11 +1,24 @@
-name: Build Windows Installer
+name: Release
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
+  release:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: "--target aarch64-apple-darwin"
+          - platform: macos-latest
+            args: "--target x86_64-apple-darwin"
+          - platform: windows-latest
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
 
@@ -18,7 +31,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: "1.77.2"
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -26,15 +39,18 @@ jobs:
           workspaces: "./src-tauri -> target"
 
       - name: Install frontend dependencies
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: windows-build-${{ github.run_number }}
-          releaseName: "MOROX Windows Build #${{ github.run_number }}"
+          tagName: v__VERSION__
+          releaseName: "MOROX v__VERSION__"
           releaseDraft: false
           prerelease: false
-          includeUpdaterJson: false
+          includeUpdaterJson: true
+          args: ${{ matrix.args }}

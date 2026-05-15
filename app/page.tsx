@@ -12,6 +12,7 @@ import { AusgleichszuweisungView } from "@/components/ausgleichszuweisung-view"
 import { UmlagemeldungView } from "@/components/umlagemeldung-view"
 import { SettingsDialog } from "@/components/settings-dialog"
 import { AiAssistant } from "@/components/ai-assistant"
+import { Updater } from "@/components/updater"
 import type { DocumentType } from "@/lib/types"
 
 export default function Home() {
@@ -145,6 +146,7 @@ export default function Home() {
         )}
       </main>
       <AiAssistant onOpenDocument={handlePrintFromEmployee} />
+      <Updater />
     </div>
   )
 }
