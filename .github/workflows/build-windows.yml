@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  release:
+  build:
     permissions:
       contents: write
     strategy:
@@ -12,46 +12,86 @@ jobs:
       matrix:
         include:
           - platform: macos-latest
-            args: "--target aarch64-apple-darwin"
+            target: aarch64-apple-darwin
           - platform: macos-latest
-            args: "--target x86_64-apple-darwin"
+            target: x86_64-apple-darwin
           - platform: windows-latest
-            args: ""
+            target: x86_64-pc-windows-msvc
 
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.target }}
 
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
+      - uses: swatinem/rust-cache@v2
         with:
           workspaces: "./src-tauri -> target"
 
       - name: Install frontend dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
+      - name: Build Next.js
+        run: npm run build
+
+      - name: Build Tauri
+        run: npx tauri build --target ${{ matrix.target }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Upload bundle artifacts
+        uses: actions/upload-artifact@v4
         with:
-          tagName: v__VERSION__
-          releaseName: "MOROX v__VERSION__"
-          releaseDraft: false
-          prerelease: false
-          includeUpdaterJson: true
-          tauriScript: npx tauri
-          args: ${{ matrix.args }}
+          name: bundle-${{ matrix.target }}
+          path: src-tauri/target/${{ matrix.target }}/release/bundle/
+          if-no-files-found: warn
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all bundles
+        uses: actions/download-artifact@v4
+        with:
+          path: bundles
+
+      - name: Get version
+        id: ver
+        run: |
+          VERSION=$(python3 -c "import json; print(json.load(open('src-tauri/tauri.conf.json'))['version'])")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Generate latest.json
+        run: python3 .github/scripts/gen-latest-json.py bundles ${{ steps.ver.outputs.version }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: "MOROX v${{ steps.ver.outputs.version }}"
+          files: |
+            bundles/bundle-aarch64-apple-darwin/dmg/*.dmg
+            bundles/bundle-x86_64-apple-darwin/dmg/*.dmg
+            bundles/bundle-aarch64-apple-darwin/macos/*.app.tar.gz
+            bundles/bundle-aarch64-apple-darwin/macos/*.app.tar.gz.sig
+            bundles/bundle-x86_64-apple-darwin/macos/*.app.tar.gz
+            bundles/bundle-x86_64-apple-darwin/macos/*.app.tar.gz.sig
+            bundles/bundle-x86_64-pc-windows-msvc/nsis/*.exe
+            bundles/bundle-x86_64-pc-windows-msvc/nsis/*.exe.zip
+            bundles/bundle-x86_64-pc-windows-msvc/nsis/*.exe.zip.sig
+            bundles/bundle-x86_64-pc-windows-msvc/msi/*.msi
+            bundles/bundle-x86_64-pc-windows-msvc/msi/*.msi.zip
+            bundles/bundle-x86_64-pc-windows-msvc/msi/*.msi.zip.sig
+            latest.json
