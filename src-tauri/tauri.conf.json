@@ -1,0 +1,46 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "MOROX",
+  "version": "0.1.2",
+  "identifier": "de.pflegedienst-moro.morox",
+  "build": {
+    "frontendDist": "../out",
+    "devUrl": "http://localhost:3000",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "MOROX",
+        "width": 1245,
+        "height": 800,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "createUpdaterArtifacts": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk5QTIyMzU1MEM2NkM5MzIKUldReXlXWU1WU09pbWYrd1pzdmJLQ2VuRjJMS2F1T1R0YWkxZ3h4T2NQTWo4ckhidUtpZWFDQ0wK",
+      "endpoints": [
+        "https://github.com/Cloonson/PubMOROX/releases/latest/download/latest.json"
+      ]
+    }
+  }
+}

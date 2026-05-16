@@ -1,0 +1,124 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            artifact-name: bundle-aarch64-apple-darwin
+            bundle-path: src-tauri/target/aarch64-apple-darwin/release/bundle
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+            artifact-name: bundle-x86_64-apple-darwin
+            bundle-path: src-tauri/target/x86_64-apple-darwin/release/bundle
+          - platform: windows-latest
+            target: windows
+            artifact-name: bundle-windows
+            bundle-path: src-tauri/target/release/bundle
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target != 'windows' && matrix.target || '' }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install frontend dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build Next.js
+        run: npm run build
+
+      - name: Build Tauri (macOS)
+        if: matrix.platform == 'macos-latest'
+        run: npx tauri build --target ${{ matrix.target }}
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Build Tauri (Windows)
+        if: matrix.platform == 'windows-latest'
+        run: npx tauri build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: List bundle contents
+        shell: bash
+        run: find ${{ matrix.bundle-path }} -type f | sort
+
+      - name: Upload bundle artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: ${{ matrix.bundle-path }}
+          if-no-files-found: warn
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all bundles
+        uses: actions/download-artifact@v4
+        with:
+          path: bundles
+
+      - name: Debug bundle structure
+        run: find bundles -type f | sort
+
+      - name: Rename macOS artifacts to avoid filename collision
+        run: |
+          for f in bundles/bundle-aarch64-apple-darwin/macos/MOROX.app.tar.gz*; do
+            ext="${f#*.app.tar.gz}"
+            mv "$f" "bundles/bundle-aarch64-apple-darwin/macos/MOROX_aarch64.app.tar.gz$ext"
+          done
+          for f in bundles/bundle-x86_64-apple-darwin/macos/MOROX.app.tar.gz*; do
+            ext="${f#*.app.tar.gz}"
+            mv "$f" "bundles/bundle-x86_64-apple-darwin/macos/MOROX_x86_64.app.tar.gz$ext"
+          done
+
+      - name: Get version
+        id: ver
+        run: |
+          VERSION=$(python3 -c "import json; print(json.load(open('src-tauri/tauri.conf.json'))['version'])")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Generate latest.json
+        run: python3 .github/scripts/gen-latest-json.py bundles ${{ steps.ver.outputs.version }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: "MOROX v${{ steps.ver.outputs.version }}"
+          files: |
+            bundles/**/*.dmg
+            bundles/**/*.msi
+            bundles/**/*.exe
+            bundles/**/*.app.tar.gz
+            bundles/**/*.app.tar.gz.sig
+            bundles/**/*.exe.sig
+            bundles/**/*.msi.sig
+            latest.json
