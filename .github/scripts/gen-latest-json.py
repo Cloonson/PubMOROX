@@ -4,7 +4,7 @@ import json, sys, os, glob, datetime
 
 bundles_dir = sys.argv[1]
 version = sys.argv[2]
-repo = "https://github.com/Cloonson/MOROX"
+repo = "https://github.com/Cloonson/PubMOROX"
 tag = f"v{version}"
 base_url = f"{repo}/releases/download/{tag}"
 

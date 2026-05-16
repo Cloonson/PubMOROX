@@ -39,7 +39,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk5QTIyMzU1MEM2NkM5MzIKUldReXlXWU1WU09pbWYrd1pzdmJLQ2VuRjJMS2F1T1R0YWkxZ3h4T2NQTWo4ckhidUtpZWFDQ0wK",
       "endpoints": [
-        "https://github.com/Cloonson/MOROX/releases/latest/download/latest.json"
+        "https://github.com/Cloonson/PubMOROX/releases/latest/download/latest.json"
       ]
     }
   }
