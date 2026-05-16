@@ -85,6 +85,20 @@ jobs:
         with:
           path: bundles
 
+      - name: Debug bundle structure
+        run: find bundles -type f | sort
+
+      - name: Rename macOS artifacts to avoid filename collision
+        run: |
+          for f in bundles/bundle-aarch64-apple-darwin/macos/MOROX.app.tar.gz*; do
+            ext="${f#*.app.tar.gz}"
+            mv "$f" "bundles/bundle-aarch64-apple-darwin/macos/MOROX_aarch64.app.tar.gz$ext"
+          done
+          for f in bundles/bundle-x86_64-apple-darwin/macos/MOROX.app.tar.gz*; do
+            ext="${f#*.app.tar.gz}"
+            mv "$f" "bundles/bundle-x86_64-apple-darwin/macos/MOROX_x86_64.app.tar.gz$ext"
+          done
+
       - name: Get version
         id: ver
         run: |
@@ -105,8 +119,6 @@ jobs:
             bundles/**/*.exe
             bundles/**/*.app.tar.gz
             bundles/**/*.app.tar.gz.sig
-            bundles/**/*.msi.zip
-            bundles/**/*.msi.zip.sig
-            bundles/**/*.nsis.zip
-            bundles/**/*.nsis.zip.sig
+            bundles/**/*.exe.sig
+            bundles/**/*.msi.sig
             latest.json
