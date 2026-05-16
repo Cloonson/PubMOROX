@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates latest.json for Tauri updater from built bundle artifacts."""
+"""Generates latest.json for Tauri v2 updater from built bundle artifacts."""
 import json, sys, os, glob, datetime
 
 bundles_dir = sys.argv[1]
@@ -26,6 +26,7 @@ if sig and tar:
         "signature": read_sig(sig),
         "url": f"{base_url}/{os.path.basename(tar)}"
     }
+    print(f"✓ darwin-aarch64: {os.path.basename(tar)}", file=sys.stderr)
 
 # macOS x86_64
 sig = find_one(f"{bundles_dir}/bundle-x86_64-apple-darwin/macos/*.app.tar.gz.sig")
@@ -35,16 +36,18 @@ if sig and tar:
         "signature": read_sig(sig),
         "url": f"{base_url}/{os.path.basename(tar)}"
     }
+    print(f"✓ darwin-x86_64: {os.path.basename(tar)}", file=sys.stderr)
 
-# Windows x86_64 — prefer NSIS, fallback MSI
-for ext in ["nsis/*.exe.zip", "msi/*.msi.zip"]:
-    sig = find_one(f"{bundles_dir}/bundle-x86_64-pc-windows-msvc/{ext}.sig")
-    archive = find_one(f"{bundles_dir}/bundle-x86_64-pc-windows-msvc/{ext}")
-    if sig and archive:
+# Windows — prefer NSIS .exe, fallback MSI
+for pattern in ["nsis/*.exe", "msi/*.msi"]:
+    installer = find_one(f"{bundles_dir}/bundle-windows/{pattern}")
+    sig = find_one(f"{bundles_dir}/bundle-windows/{pattern}.sig")
+    if installer and sig:
         platforms["windows-x86_64"] = {
             "signature": read_sig(sig),
-            "url": f"{base_url}/{os.path.basename(archive)}"
+            "url": f"{base_url}/{os.path.basename(installer)}"
         }
+        print(f"✓ windows-x86_64: {os.path.basename(installer)}", file=sys.stderr)
         break
 
 out = {
@@ -54,8 +57,10 @@ out = {
     "platforms": platforms
 }
 
-print(json.dumps(out, indent=2))
 with open("latest.json", "w") as f:
     json.dump(out, f, indent=2)
 
-print(f"Generated latest.json with platforms: {list(platforms.keys())}", file=sys.stderr)
+print(f"Platforms: {list(platforms.keys())}", file=sys.stderr)
+if not platforms:
+    print("WARNING: no platforms found!", file=sys.stderr)
+    sys.exit(1)
