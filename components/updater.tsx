@@ -13,6 +13,7 @@ export function Updater() {
   const [version, setVersion] = useState("")
   const [installing, setInstalling] = useState(false)
   const [dismissed, setDismissed] = useState(false)
+  const [error, setError] = useState("")
 
   useEffect(() => {
     if (!isTauri()) return
@@ -45,6 +46,7 @@ export function Updater() {
       }
     } catch (e: any) {
       console.error("Update fehlgeschlagen:", e)
+      setError(e?.message || String(e))
       setInstalling(false)
     }
   }
@@ -69,6 +71,7 @@ export function Updater() {
           <><Download className="w-3.5 h-3.5 mr-1.5" /> Jetzt installieren</>
         )}
       </Button>
+      {error && <p className="text-xs text-destructive break-words">{error}</p>}
     </div>
   )
 }
