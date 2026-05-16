@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "MOROX",
-  "version": "0.1.4",
+  "version": "0.1.7",
   "identifier": "de.pflegedienst-moro.morox",
   "build": {
     "frontendDist": "../out",
@@ -37,7 +37,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk5QTIyMzU1MEM2NkM5MzIKUldReXlXWU1WU09pbWYrd1pzdmJLQ2VuRjJMS2F1T1R0YWkxZ3h4T2NQTWo4ckhidUtpZWFDQ0wK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk5QTIyMzU1MEM2NkM5MzIKUldReXlXWU1WU09pbWYrd1pzdmJLQ2VuRjJMS2F1T1R0YWkxZ3p4T2NQTWo4ckhidUtpZWFDQ0wK",
       "endpoints": [
         "https://github.com/Cloonson/PubMOROX/releases/latest/download/latest.json"
       ]

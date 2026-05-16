@@ -14,9 +14,13 @@ export function Updater() {
   const [installing, setInstalling] = useState(false)
   const [dismissed, setDismissed] = useState(false)
   const [error, setError] = useState("")
+  const [checkError, setCheckError] = useState("")
 
   useEffect(() => {
-    if (!isTauri()) return
+    if (!isTauri()) {
+      setCheckError("not-tauri")
+      return
+    }
     const timer = setTimeout(checkUpdate, 3000)
     return () => clearTimeout(timer)
   }, [])
@@ -28,9 +32,11 @@ export function Updater() {
       if (update?.available) {
         setVersion(update.version)
         setUpdateAvailable(true)
+      } else {
+        setCheckError(`kein update (current ok)`)
       }
-    } catch {
-      // Kein Update verfügbar oder kein Netz
+    } catch (e: any) {
+      setCheckError(e?.message || String(e))
     }
   }
 
@@ -50,6 +56,12 @@ export function Updater() {
       setInstalling(false)
     }
   }
+
+  if (checkError && !updateAvailable) return (
+    <div className="fixed bottom-4 left-4 z-50 bg-background border rounded-xl shadow p-3 w-72 text-xs text-muted-foreground break-words">
+      Updater: {checkError}
+    </div>
+  )
 
   if (!updateAvailable || dismissed) return null
 
