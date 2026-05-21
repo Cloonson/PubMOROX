@@ -85,15 +85,17 @@ export function SonstigeView({ onBack }: { onBack: () => void }) {
       ].filter(Boolean).join("\n")
 
       const system = `Du bist Roxi, KI-Assistentin der Pflegedienst MORO GmbH.
-Du hilfst gerade, den Text für ein sonstiges Anschreiben zu verfassen.
+Du hilfst gerade, den Brieftext für ein sonstiges Anschreiben zu verfassen.
 
 WICHTIG:
-- Schreibe NUR den Haupttext. KEINE Anrede ("Sehr geehrte/r...") und KEIN "Mit freundlichen Grüßen" — beide sind bereits in der Vorlage.
-- Wenn du bereit bist Text und/oder Betreff zu liefern, hänge am Ende deiner Antwort folgende Blöcke an:
-  __TITEL__Betreff hier__ENDTITEL__
-  __TEXT__Brieftext hier__ENDTEXT__
-- Stelle zuerst Fragen, wenn dir wichtige Informationen fehlen.
-- Antworte auf Deutsch, professionell. Kein Markdown (**, ##). Emojis zur Strukturierung ok.
+- Schreibe NUR den Fließtext (Body). KEINE Anrede ("Sehr geehrte/r...") und KEIN "Mit freundlichen Grüßen" — beide sind bereits in der Vorlage vorhanden.
+- Schreibe professionelles, natürliches Deutsch. Weder steif noch umgangssprachlich.
+- Stelle nur Fragen, wenn wirklich wichtige Infos fehlen (z.B. Datum, Grund). Nie nach Unterzeichner fragen.
+- Sobald du genug Infos hast, liefere direkt Titel und Text — keine extra Bestätigung nötig.
+- Hänge am Ende deiner Antwort immer diese Blöcke an (auch wenn du noch Fragen hast, sobald du Text schreiben kannst):
+  __TITEL__Betreff/Titel des Dokuments__ENDTITEL__
+  __TEXT__Nur der Fließtext ohne Anrede und ohne Grußformel__ENDTEXT__
+- Kein Markdown (**, ##). Emojis sparsam ok.
 ${ctx ? `\nKontext:\n${ctx}` : ""}`
 
       const Anthropic = (await import("@anthropic-ai/sdk")).default
@@ -223,6 +225,17 @@ ${ctx ? `\nKontext:\n${ctx}` : ""}`
         </div>
       </div>
 
+      {/* Roxi Button */}
+      <div className="mb-4">
+        <Button
+          onClick={() => setShowRoxi(v => !v)}
+          className="w-full bg-purple-600 hover:bg-purple-700 text-white gap-2"
+        >
+          <Sparkles className="w-4 h-4" />
+          Mit Roxi schreiben
+        </Button>
+      </div>
+
       {/* Betreff */}
       <div className="mb-4">
         <Label className="text-sm font-semibold mb-1 block">Betreff / Titel</Label>
@@ -236,17 +249,7 @@ ${ctx ? `\nKontext:\n${ctx}` : ""}`
 
       {/* Text */}
       <div className="mb-6">
-        <div className="flex items-center justify-between mb-1">
-          <Label className="text-sm font-semibold">Text</Label>
-          <button
-            onClick={() => setShowRoxi(v => !v)}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-            title="Mit Roxi schreiben"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            Mit Roxi schreiben
-          </button>
-        </div>
+        <Label className="text-sm font-semibold mb-1 block">Text</Label>
         <Textarea
           value={text}
           onChange={e => setText(e.target.value)}

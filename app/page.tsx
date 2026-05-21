@@ -10,7 +10,6 @@ import { VerguetungsverhandlungenView } from "@/components/verguetungsverhandlun
 import { PrognosemeldungView } from "@/components/prognosemeldung-view"
 import { AusgleichszuweisungView } from "@/components/ausgleichszuweisung-view"
 import { UmlagemeldungView } from "@/components/umlagemeldung-view"
-import { SonstigeView } from "@/components/sonstige-view"
 import { SettingsDialog } from "@/components/settings-dialog"
 import { AiAssistant } from "@/components/ai-assistant"
 import { Updater } from "@/components/updater"
@@ -24,7 +23,6 @@ export default function Home() {
   const [showPrognosemeldungen, setShowPrognosemeldungen] = useState(false)
   const [showAusgleichszuweisung, setShowAusgleichszuweisung] = useState(false)
   const [showUmlagemeldung, setShowUmlagemeldung] = useState(false)
-  const [showSonstige, setShowSonstige] = useState(false)
   const [documentInitialData, setDocumentInitialData] = useState<Record<string, string> | undefined>()
 
   const resetViews = () => {
@@ -34,7 +32,6 @@ export default function Home() {
     setShowPrognosemeldungen(false)
     setShowAusgleichszuweisung(false)
     setShowUmlagemeldung(false)
-    setShowSonstige(false)
   }
 
   const handleSelectDocument = (type: DocumentType) => {
@@ -85,12 +82,6 @@ export default function Home() {
     setShowUmlagemeldung(true)
   }
 
-  const handleOpenSonstige = () => {
-    setActiveDocument(null)
-    resetViews()
-    setShowSonstige(true)
-  }
-
   const handlePrintFromEmployee = (type: DocumentType, data: Record<string, string>) => {
     setDocumentInitialData(data)
     setActiveDocument(type)
@@ -122,11 +113,9 @@ export default function Home() {
         onOpenAusgleichszuweisung={handleOpenAusgleichszuweisung}
         showUmlagemeldung={showUmlagemeldung}
         onOpenUmlagemeldung={handleOpenUmlagemeldung}
-        showSonstige={showSonstige}
-        onOpenSonstige={handleOpenSonstige}
       />
       <main className="flex-1 overflow-auto relative">
-        {activeDocument === null && !showStorage && !showMitarbeiter && !showVerguetung && !showPrognosemeldungen && !showAusgleichszuweisung && !showUmlagemeldung && !showSonstige && <SettingsDialog />}
+        {activeDocument === null && !showStorage && !showMitarbeiter && !showVerguetung && !showPrognosemeldungen && !showAusgleichszuweisung && !showUmlagemeldung && <SettingsDialog />}
         {showStorage ? (
           <StorageView />
         ) : showMitarbeiter ? (
@@ -139,8 +128,6 @@ export default function Home() {
           <AusgleichszuweisungView />
         ) : showUmlagemeldung ? (
           <UmlagemeldungView />
-        ) : showSonstige ? (
-          <SonstigeView onBack={handleGoHome} />
         ) : activeDocument === null ? (
           <Dashboard
             onSelectDocument={handleSelectDocument}
@@ -148,7 +135,6 @@ export default function Home() {
             onOpenPrognosemeldungen={handleOpenPrognosemeldungen}
             onOpenAusgleichszuweisung={handleOpenAusgleichszuweisung}
             onOpenUmlagemeldung={handleOpenUmlagemeldung}
-            onOpenSonstige={handleOpenSonstige}
           />
         ) : (
           <DocumentForm

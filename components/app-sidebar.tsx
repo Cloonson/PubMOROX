@@ -18,7 +18,6 @@ import {
   BarChart2,
   Calculator,
   ClipboardList,
-  FilePlus,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { documentTypes, type DocumentType } from "@/lib/types"
@@ -51,11 +50,9 @@ interface AppSidebarProps {
   onOpenAusgleichszuweisung?: () => void
   showUmlagemeldung?: boolean
   onOpenUmlagemeldung?: () => void
-  showSonstige?: boolean
-  onOpenSonstige?: () => void
 }
 
-export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showStorage, onOpenStorage, showMitarbeiter, onOpenMitarbeiter, showVerguetung, onOpenVerguetung, showPrognosemeldungen, onOpenPrognosemeldungen, showAusgleichszuweisung, onOpenAusgleichszuweisung, showUmlagemeldung, onOpenUmlagemeldung, showSonstige, onOpenSonstige }: AppSidebarProps) {
+export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showStorage, onOpenStorage, showMitarbeiter, onOpenMitarbeiter, showVerguetung, onOpenVerguetung, showPrognosemeldungen, onOpenPrognosemeldungen, showAusgleichszuweisung, onOpenAusgleichszuweisung, showUmlagemeldung, onOpenUmlagemeldung }: AppSidebarProps) {
   const vertraege = documentTypes.filter((d) => d.category === "vertraege")
   const zeugnisse = documentTypes.filter((d) => d.category === "zeugnisse")
   const disziplinar = documentTypes.filter((d) => d.category === "disziplinar")
@@ -81,7 +78,7 @@ export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showSto
             onClick={onGoHome}
             className={cn(
               "flex items-center gap-3 w-full px-3 py-2 rounded-md text-sm font-medium transition-colors",
-              activeDocument === null && !showStorage && !showMitarbeiter && !showVerguetung && !showPrognosemeldungen && !showAusgleichszuweisung && !showUmlagemeldung && !showSonstige
+              activeDocument === null && !showStorage && !showMitarbeiter && !showVerguetung && !showPrognosemeldungen && !showAusgleichszuweisung && !showUmlagemeldung
                 ? "bg-sidebar-accent text-sidebar-accent-foreground"
                 : "hover:bg-sidebar-accent/50"
             )}
@@ -114,19 +111,6 @@ export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showSto
           >
             <Users className="w-4 h-4" />
             Mitarbeiter
-          </button>
-
-          <button
-            onClick={onOpenSonstige}
-            className={cn(
-              "flex items-center gap-3 w-full px-3 py-2 rounded-md text-sm font-medium transition-colors",
-              showSonstige
-                ? "bg-orange-500/10 text-orange-500"
-                : "hover:bg-sidebar-accent/50"
-            )}
-          >
-            <FilePlus className="w-4 h-4" />
-            Sonstige Dokumente
           </button>
 
         </div>

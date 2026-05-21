@@ -60,9 +60,13 @@ Schritt 2 — Zusammenfassung zur Bestätigung:
 Sobald du alle nötigen Informationen hast, fasse sie IMMER in einer übersichtlichen Liste zusammen und frage explizit: "Soll ich das Dokument so erstellen?" oder "Ist alles korrekt?". Warte auf eine ausdrückliche Bestätigung ("ja", "stimmt", "passt", "ok", o.ä.).
 
 Schritt 3 — Dokument erstellen:
-Erst nach ausdrücklicher Bestätigung durch den Nutzer schreibe eine kurze Bestätigungsnachricht und hänge GANZ AM ENDE den ACTION-Block an.
+Nach ausdrücklicher Bestätigung ("ja", "jawohl", "stimmt", "passt", "ok", "mach das", "erstell es" o.ä.) schreibe eine kurze Bestätigungsnachricht (1 Satz) und hänge UNMITTELBAR DANACH den ACTION-Block an. Der ACTION-Block MUSS in dieser Antwort enthalten sein — kein weiteres Nachfragen, keine weitere Zusammenfassung.
 
-WICHTIG: Erstelle NIEMALS einen ACTION-Block ohne vorherige Bestätigung durch den Nutzer. Auch wenn alle Infos vorhanden sind, immer erst Schritt 2 durchführen.
+Beispiel-Antwort nach Bestätigung:
+"Perfekt, ich erstelle das Dokument jetzt! ✅
+__ACTION__{"type":"sonstige","gender":"Frau","vorname":"Maria","nachname":"Muster","street":"Musterstr. 1","city":"44388 Dortmund","titel":"Muster-Titel","text":"Muster-Text"}__END__"
+
+WICHTIG: Erstelle NIEMALS einen ACTION-Block ohne vorherige Bestätigung. Aber sobald Bestätigung kommt — ACTION-Block MUSS in der gleichen Antwort erscheinen, ohne Ausnahme.
 
 FORMAT je Dokumenttyp:
 
@@ -87,11 +91,21 @@ ARBEITSZEUGNIS / ZWISCHENZEUGNIS:
 __ACTION__{"type":"arbeitszeugnis","mitarbeiter":"VORNAME NACHNAME","bewertung":"gut","begin":"TT.MM.JJJJ","ende":"TT.MM.JJJJ","prof":"Position","cofbirth":"Geburtsort","beendet":"ja"}__END__
 bewertung = "gut", "mittel" oder "schlecht". beendet = "ja" nur wenn Austrittsdatum bereits in der Vergangenheit liegt, sonst "nein".
 
-SONSTIGES DOKUMENT (für alle anderen Anschreiben, Briefe, Mitteilungen):
-__ACTION__{"type":"sonstige","mitarbeiter":"VORNAME NACHNAME oder leer","titel":"Betreff des Dokuments","text":"Nur der Fließtext, OHNE Anrede und OHNE Grußformel — beide sind in der Vorlage enthalten"}__END__
-Wenn kein Mitarbeiter betroffen ist, mitarbeiter="" lassen. text enthält keinesfalls "Sehr geehrte/r" oder "Mit freundlichen Grüßen".
-Diese Option nutzen für: Einladungen, Mitteilungen, Bescheinigungen, Atteste, interne Schreiben, alles was keine spezielle Vorlage hat.
-Wenn jemand ein Dokument anfragt, für das du keine spezifische Vorlage hast: Nutze den sonstige-Typ und teile dem Nutzer mit, dass du keine spezielle Vorlage hast, aber ein allgemeines Anschreiben erstellen kannst.`
+SONSTIGES DOKUMENT (für alle anderen Anschreiben, Briefe, Mitteilungen — z.B. Kündigung Pflegevertrag, Einladungen, Mitteilungen, Bescheinigungen):
+__ACTION__{"type":"sonstige","gender":"Frau","vorname":"VORNAME","nachname":"NACHNAME","street":"Straße Nr","city":"PLZ Ort","titel":"Betreff","text":"Nur Fließtext — OHNE Anrede, OHNE Grußformel"}__END__
+
+REGELN für sonstige:
+- gender = "Frau" oder "Herr". Ableitung: "Patientin/Kundin/Mitarbeiterin/sie/ihr" → "Frau"; "Patient/Kunde/Mitarbeiter/er/ihm" → "Herr". Wenn der Name ohne Anrede genannt wird, nutze den Kontext aus dem gesamten Gespräch. NIEMALS vom Namen auf das Geschlecht schließen — nur aus expliziten Angaben oder Kontext-Wörtern wie "Patientin".
+- vorname und nachname getrennt angeben. Wenn der Nutzer "Frau/Herr VORNAME NACHNAME" sagt → gender extrahieren, vorname/nachname trennen. Bei mehr als 2 Wörtern (ohne Anrede) EINMAL fragen welcher der Nachname ist.
+- street und city IMMER erfragen wenn nicht angegeben — werden für die Anschrift auf dem Brief benötigt.
+- Datum (date) NIEMALS fragen — wird automatisch auf das heutige Datum gesetzt.
+- Unterzeichner NIEMALS fragen — steht bereits in der Vorlage.
+- titel = vollständiger, ausformulierter Betreff, z.B. "Kündigung des bestehenden Pflegevertrags" statt nur "Kündigung Pflegevertrag".
+- text = professioneller Fließtext auf Deutsch, KEIN "Sehr geehrte/r...", KEIN "Mit freundlichen Grüßen", KEINE Grußformeln.
+- Schreibe natürliches, warmes aber professionelles Deutsch. Halte den Text KURZ — 2–4 Sätze, keine Füllsätze wie "Wir werden alles in unserer Kraft Stehende tun" oder "für einen reibungslosen Übergang". Beispiel Stil: "wir bedauern Ihnen mitteilen zu müssen, dass wir den bestehenden Pflegevertrag zwischen Ihnen und uns, der Pflegedienst MORO GmbH, zum [Datum] aufgrund von [Grund] kündigen müssen. Wir entschuldigen uns für die Unannehmlichkeiten."
+- Für sonstige Dokumente: Schritt-2-Bestätigung kann übersprungen werden wenn alle Infos vorhanden — direkt ACTION erstellen.
+- Nach jeder Bestätigung durch den Nutzer: sofort ACTION-Block ausgeben, NIEMALS nochmals fragen oder nur "Ich erstelle es jetzt" schreiben ohne den Block.
+- Diese Option nutzen wenn kein spezieller HR-Dokumenttyp passt. Bei Anfragen ohne passende Vorlage kurz erwähnen ("Dafür habe ich keine spezielle Vorlage, ich erstelle ein allgemeines Anschreiben.") und direkt sonstige nutzen.`
 
 const fmtDE = (d: string): string => {
   if (!d) return ""
@@ -114,11 +128,11 @@ function parseAction(raw: string, employees: Employee[]): {
     const json = JSON.parse(match[1].trim())
     const { type, mitarbeiter, ...rest } = json
 
-    const fullName = (mitarbeiter as string).trim()
-    const emp = employees.find(
+    const fullName = (mitarbeiter as string || "").trim()
+    const emp = fullName ? employees.find(
       (e) => `${e.vorname} ${e.nachname}`.toLowerCase() === fullName.toLowerCase()
-    )
-    const vorname = emp ? emp.vorname : fullName.split(" ")[0]
+    ) : undefined
+    const vorname = emp ? emp.vorname : (fullName.split(" ")[0] || "")
     const nachname = emp ? emp.nachname : fullName.split(" ").slice(1).join(" ")
 
     const gender = emp?.geschlecht === "weiblich" ? "Frau" : "Herr"
@@ -170,17 +184,36 @@ function parseAction(raw: string, employees: Employee[]): {
     }
 
     if (type === "sonstige") {
-      const fullNameRaw = (mitarbeiter as string || "").trim()
-      let sVorname = vorname
-      let sNachname = nachname
-      let sGender = gender
-      let sStreet = emp ? (emp.strasse || "") : ""
-      let sCity = emp ? `${emp.plz || ""} ${emp.ort || ""}`.trim() : ""
-      if (!emp && fullNameRaw) {
-        const parts = fullNameRaw.split(" ")
-        sVorname = parts[0] || ""
-        sNachname = parts.slice(1).join(" ")
+      // New format: explicit gender/vorname/nachname/street/city fields
+      // Fall back to legacy mitarbeiter parsing if new fields not present
+      let sGender = rest.gender || ""
+      let sVorname = rest.vorname || ""
+      let sNachname = rest.nachname || ""
+      let sStreet = rest.street || (emp ? emp.strasse || "" : "")
+      let sCity = rest.city || (emp ? `${emp.plz || ""} ${emp.ort || ""}`.trim() : "")
+
+      // Legacy fallback: mitarbeiter field
+      if (!sVorname && !sNachname && mitarbeiter) {
+        const parts = (mitarbeiter as string).trim().split(" ")
+        if (parts[0] === "Frau" || parts[0] === "Herr") {
+          sGender = parts[0]
+          sVorname = parts[1] || ""
+          sNachname = parts.slice(2).join(" ")
+        } else {
+          sVorname = parts[0] || ""
+          sNachname = parts.slice(1).join(" ")
+        }
       }
+
+      // If employee found in list, prefer their data
+      if (emp) {
+        sGender = emp.geschlecht === "weiblich" ? "Frau" : "Herr"
+        sVorname = emp.vorname
+        sNachname = emp.nachname
+        sStreet = emp.strasse || ""
+        sCity = `${emp.plz || ""} ${emp.ort || ""}`.trim()
+      }
+
       generatorData = {
         gender: sGender,
         vorname: sVorname,
@@ -354,6 +387,9 @@ export function AiAssistant({ onOpenDocument }: AiAssistantProps) {
     setInput("")
     setLoading(true)
 
+    // Detect confirmation — inject a hard reminder into the API messages so the model outputs the ACTION block
+    const isConfirmation = /^(ja|jawohl|stimmt|passt|ok|okay|genau|richtig|korrekt|mach das|erstell|bitte|super|gut|perfekt|yes|jep|jo|sicher|natürlich|los|weiter|mach es|mach|done|klar|doch)[\s!.]*$/i.test(text)
+
     try {
       let systemPrompt = BASE_SYSTEM_PROMPT
       if (employees.length > 0) {
@@ -363,20 +399,38 @@ export function AiAssistant({ onOpenDocument }: AiAssistantProps) {
         systemPrompt += `\n\nAktuelle Mitarbeiterliste:\n${employeeList}`
       }
 
+      // When user confirms, force the ACTION block by replacing last user message content for the API call
+      const apiMessages = next.map((m, i) => {
+        if (isConfirmation && i === next.length - 1) {
+          return {
+            role: m.role as "user" | "assistant",
+            content: m.content + "\n\n[WICHTIG: Gib jetzt SOFORT den vollständigen __ACTION__....__END__ Block aus. Kein weiteres Nachfragen. Kein weiterer Text außer einem kurzen Satz davor.]",
+          }
+        }
+        return { role: m.role as "user" | "assistant", content: m.content }
+      })
+
       const Anthropic = (await import("@anthropic-ai/sdk")).default
       const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true })
 
       const response = await client.messages.create({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 1024,
+        max_tokens: 2048,
         system: systemPrompt,
-        messages: next.map((m) => ({ role: m.role, content: m.content })),
+        messages: apiMessages,
       })
 
       const content = response.content[0]
       if (content.type !== "text") throw new Error("Unerwarteter Antworttyp")
 
+      console.log("=== ROXI RAW RESPONSE ===")
+      console.log(content.text)
+      console.log("=== ACTION REGEX TEST ===")
+      console.log("Match:", ACTION_RE.test(content.text))
+      console.log("=========================")
+
       const { text: cleanText, action } = parseAction(content.text, employees)
+      console.log("Parsed action:", action)
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: cleanText, action, actionState: action ? "idle" : undefined },
