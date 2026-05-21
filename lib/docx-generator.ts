@@ -683,6 +683,59 @@ export async function generateAushilfsvertrag(
   }
 }
 
+export interface SonstigesDokumentData {
+  gender: string
+  vorname: string
+  nachname: string
+  street: string
+  city: string
+  date: string
+  titel: string
+  text: string
+}
+
+export async function generateSonstigesDokument(data: SonstigesDokumentData) {
+  try {
+    const response = await fetch(`/sonstige/sonstige.docx?v=${Date.now()}`)
+    if (!response.ok) throw new Error("Template nicht gefunden: /sonstige/sonstige.docx")
+    const arrayBuffer = await response.arrayBuffer()
+    const zip = new PizZip(arrayBuffer)
+
+    function angularParser(tag: string) {
+      const expr = expressions.compile(tag)
+      return { get(scope: any) { return expr(scope) } }
+    }
+
+    const doc = new Docxtemplater(zip, {
+      paragraphLoop: true,
+      linebreaks: true,
+      parser: angularParser,
+      delimiters: { start: '{', end: '}' },
+      nullGetter() { return "" },
+    })
+
+    doc.setData({
+      gender: data.gender || "",
+      vorname: data.vorname || "",
+      nachname: data.nachname || "",
+      street: data.street || "",
+      city: data.city || "",
+      date: data.date || "",
+      titel: data.titel || "",
+      text: data.text || "",
+    })
+    doc.render()
+
+    const output = doc.getZip().generate({ type: "blob", mimeType: DOCX_MIME, compression: "DEFLATE" })
+    const namePart = data.nachname ? `_${data.nachname}` : ""
+    await saveToOutputFolder(output, `Sonstiges${namePart}_${data.date.replace(/\./g, '-')}.docx`, { type: "Sonstiges", vorname: data.vorname, nachname: data.nachname })
+    return true
+  } catch (error: any) {
+    console.error("Fehler beim Generieren des sonstigen Dokuments:", error)
+    throw error
+  }
+}
+
 export async function generateInvestitionskosten(data: InvestitionskostenData) {
   try {
     const templatePath = "/invest/investitionskosten.docx"

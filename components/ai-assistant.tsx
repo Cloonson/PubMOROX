@@ -13,6 +13,7 @@ import {
   generateKuendigung,
   generateAbmahnung,
   generateArbeitszeugnis,
+  generateSonstigesDokument,
 } from "@/lib/docx-generator"
 
 interface Message {
@@ -84,7 +85,13 @@ __ACTION__{"type":"abmahnung","mitarbeiter":"VORNAME NACHNAME","beschreibung":"T
 
 ARBEITSZEUGNIS / ZWISCHENZEUGNIS:
 __ACTION__{"type":"arbeitszeugnis","mitarbeiter":"VORNAME NACHNAME","bewertung":"gut","begin":"TT.MM.JJJJ","ende":"TT.MM.JJJJ","prof":"Position","cofbirth":"Geburtsort","beendet":"ja"}__END__
-bewertung = "gut", "mittel" oder "schlecht". beendet = "ja" nur wenn Austrittsdatum bereits in der Vergangenheit liegt, sonst "nein".`
+bewertung = "gut", "mittel" oder "schlecht". beendet = "ja" nur wenn Austrittsdatum bereits in der Vergangenheit liegt, sonst "nein".
+
+SONSTIGES DOKUMENT (für alle anderen Anschreiben, Briefe, Mitteilungen):
+__ACTION__{"type":"sonstige","mitarbeiter":"VORNAME NACHNAME oder leer","titel":"Betreff des Dokuments","text":"Nur der Fließtext, OHNE Anrede und OHNE Grußformel — beide sind in der Vorlage enthalten"}__END__
+Wenn kein Mitarbeiter betroffen ist, mitarbeiter="" lassen. text enthält keinesfalls "Sehr geehrte/r" oder "Mit freundlichen Grüßen".
+Diese Option nutzen für: Einladungen, Mitteilungen, Bescheinigungen, Atteste, interne Schreiben, alles was keine spezielle Vorlage hat.
+Wenn jemand ein Dokument anfragt, für das du keine spezifische Vorlage hast: Nutze den sonstige-Typ und teile dem Nutzer mit, dass du keine spezielle Vorlage hast, aber ein allgemeines Anschreiben erstellen kannst.`
 
 const fmtDE = (d: string): string => {
   if (!d) return ""
@@ -162,6 +169,30 @@ function parseAction(raw: string, employees: Employee[]): {
       }
     }
 
+    if (type === "sonstige") {
+      const fullNameRaw = (mitarbeiter as string || "").trim()
+      let sVorname = vorname
+      let sNachname = nachname
+      let sGender = gender
+      let sStreet = emp ? (emp.strasse || "") : ""
+      let sCity = emp ? `${emp.plz || ""} ${emp.ort || ""}`.trim() : ""
+      if (!emp && fullNameRaw) {
+        const parts = fullNameRaw.split(" ")
+        sVorname = parts[0] || ""
+        sNachname = parts.slice(1).join(" ")
+      }
+      generatorData = {
+        gender: sGender,
+        vorname: sVorname,
+        nachname: sNachname,
+        street: sStreet,
+        city: sCity,
+        date: today(),
+        titel: rest.titel || "",
+        text: rest.text || "",
+      }
+    }
+
     return { text, action: { type: type as DocumentType, generatorData } }
   } catch {
     return { text }
@@ -224,6 +255,18 @@ async function executeAction(action: ParsedAction): Promise<void> {
         ende: d.ende,
         bewertung: d.bewertung,
         beendet: d.beendet,
+      })
+      break
+    case "sonstige":
+      await generateSonstigesDokument({
+        gender: d.gender,
+        vorname: d.vorname,
+        nachname: d.nachname,
+        street: d.street,
+        city: d.city,
+        date: d.date,
+        titel: d.titel,
+        text: d.text,
       })
       break
     default:

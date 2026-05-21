@@ -7,6 +7,7 @@ export type DocumentType =
   | "zwischenzeugnis"
   | "abmahnung"
   | "kuendigung"
+  | "sonstige"
 
 export interface DocumentTypeInfo {
   id: DocumentType

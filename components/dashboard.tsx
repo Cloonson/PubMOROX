@@ -14,6 +14,7 @@ import {
   TrendingUp,
   BarChart2,
   ClipboardList,
+  FilePlus,
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { documentTypes, type DocumentType } from "@/lib/types"
@@ -37,9 +38,10 @@ interface DashboardProps {
   onOpenPrognosemeldungen?: () => void
   onOpenAusgleichszuweisung?: () => void
   onOpenUmlagemeldung?: () => void
+  onOpenSonstige?: () => void
 }
 
-export function Dashboard({ onSelectDocument, onOpenVerguetung, onOpenPrognosemeldungen, onOpenAusgleichszuweisung, onOpenUmlagemeldung }: DashboardProps) {
+export function Dashboard({ onSelectDocument, onOpenVerguetung, onOpenPrognosemeldungen, onOpenAusgleichszuweisung, onOpenUmlagemeldung, onOpenSonstige }: DashboardProps) {
   const vertraege = documentTypes.filter((d) => d.category === "vertraege")
   const zeugnisse = documentTypes.filter((d) => d.category === "zeugnisse")
   const disziplinar = documentTypes.filter((d) => d.category === "disziplinar")
@@ -173,17 +175,40 @@ export function Dashboard({ onSelectDocument, onOpenVerguetung, onOpenPrognoseme
 
       <section className="mt-10">
         <h2 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
-          <div className="w-2 h-6 bg-emerald-600 rounded-full" />
-          PFAU.NRW
+          <div className="w-2 h-6 bg-orange-500 rounded-full" />
+          Sonstige Dokumente
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <Card
-            className="cursor-pointer hover:shadow-lg transition-all hover:border-emerald-600 group"
-            onClick={onOpenPrognosemeldungen}
+            className="cursor-pointer hover:shadow-lg transition-all hover:border-orange-500 group"
+            onClick={onOpenSonstige}
           >
             <CardHeader className="pb-3">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="p-2 rounded-lg bg-emerald-600/10 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500 group-hover:bg-orange-500 group-hover:text-white transition-colors">
+                  <FilePlus className="w-5 h-5" />
+                </div>
+                <CardTitle className="text-lg leading-tight min-w-0 break-words">Sonstiges Anschreiben</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <CardDescription>Freies Dokument mit optionalem Mitarbeiterbezug — auch mit Roxi schreibbar</CardDescription>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      <section className="mt-10 opacity-50">
+        <h2 className="text-xl font-semibold text-foreground mb-1 flex items-center gap-2">
+          <div className="w-2 h-6 bg-emerald-600 rounded-full" />
+          PFAU.NRW
+        </h2>
+        <p className="text-xs text-muted-foreground italic mb-4">In Entwicklung</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <Card className="cursor-not-allowed">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2 rounded-lg bg-emerald-600/10 text-emerald-600">
                   <BarChart2 className="w-5 h-5" />
                 </div>
                 <CardTitle className="text-lg leading-tight min-w-0 break-words">Prognosemeldungen</CardTitle>
@@ -194,13 +219,10 @@ export function Dashboard({ onSelectDocument, onOpenVerguetung, onOpenPrognoseme
             </CardContent>
           </Card>
 
-          <Card
-            className="cursor-pointer hover:shadow-lg transition-all hover:border-emerald-600 group"
-            onClick={onOpenAusgleichszuweisung}
-          >
+          <Card className="cursor-not-allowed">
             <CardHeader className="pb-3">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="p-2 rounded-lg bg-emerald-600/10 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                <div className="p-2 rounded-lg bg-emerald-600/10 text-emerald-600">
                   <Calculator className="w-5 h-5" />
                 </div>
                 <CardTitle className="text-lg leading-tight min-w-0 break-words">Ausgleichszuweisung</CardTitle>
@@ -211,13 +233,10 @@ export function Dashboard({ onSelectDocument, onOpenVerguetung, onOpenPrognoseme
             </CardContent>
           </Card>
 
-          <Card
-            className="cursor-pointer hover:shadow-lg transition-all hover:border-emerald-600 group"
-            onClick={onOpenUmlagemeldung}
-          >
+          <Card className="cursor-not-allowed">
             <CardHeader className="pb-3">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="p-2 rounded-lg bg-emerald-600/10 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                <div className="p-2 rounded-lg bg-emerald-600/10 text-emerald-600">
                   <ClipboardList className="w-5 h-5" />
                 </div>
                 <CardTitle className="text-lg leading-tight min-w-0 break-words">Umlagemeldung</CardTitle>
