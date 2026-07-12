@@ -94,11 +94,11 @@ function CategoryHeader({
       onClick={onToggle}
       className={cn(
         "flex items-center justify-between w-full mb-2 group px-3 py-2 rounded-md transition-colors",
-        bgClass ?? "bg-muted/40"
+        bgClass ?? "bg-muted/20"
       )}
     >
       <div>
-        <h3 className={cn("text-sm font-bold text-left", accentClass ?? "text-sidebar-foreground")}>{label}</h3>
+        <h3 className="text-sm font-bold text-left text-sidebar-foreground">{label}</h3>
         {subtitle && <p className="text-xs text-muted-foreground italic text-left">{subtitle}</p>}
       </div>
       {open ? (
@@ -208,7 +208,7 @@ export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showSto
         </div>
 
         <div>
-          <CategoryHeader label="Verträge" open={openCategories.vertraege} onToggle={() => toggleCategory("vertraege")} accentClass="text-primary" bgClass="bg-primary/10" />
+          <CategoryHeader label="Verträge" open={openCategories.vertraege} onToggle={() => toggleCategory("vertraege")} accentClass="text-primary" bgClass="bg-primary/[0.04]" />
           <CollapsibleContent open={openCategories.vertraege}>
             <ul className="space-y-1">
               {vertraege.map((doc) => {
@@ -218,10 +218,10 @@ export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showSto
                     <button
                       onClick={() => onSelectDocument(doc.id)}
                       className={cn(
-                        "flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm transition-colors bg-primary/10",
+                        "flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm transition-colors bg-primary/5",
                         activeDocument === doc.id
-                          ? "bg-primary/20 text-primary"
-                          : "hover:bg-primary/20 hover:text-primary"
+                          ? "bg-primary/10 text-primary"
+                          : "hover:bg-primary/10 hover:text-primary"
                       )}
                     >
                       <Icon className={cn(
@@ -238,7 +238,7 @@ export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showSto
         </div>
 
         <div>
-          <CategoryHeader label="Zeugnisse" open={openCategories.zeugnisse} onToggle={() => toggleCategory("zeugnisse")} accentClass="text-secondary" bgClass="bg-secondary/10" />
+          <CategoryHeader label="Zeugnisse" open={openCategories.zeugnisse} onToggle={() => toggleCategory("zeugnisse")} accentClass="text-secondary" bgClass="bg-secondary/[0.04]" />
           <CollapsibleContent open={openCategories.zeugnisse}>
             <ul className="space-y-1">
               {zeugnisse.map((doc) => {
@@ -248,10 +248,10 @@ export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showSto
                     <button
                       onClick={() => onSelectDocument(doc.id)}
                       className={cn(
-                        "flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm transition-colors bg-secondary/10",
+                        "flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm transition-colors bg-secondary/5",
                         activeDocument === doc.id
-                          ? "bg-secondary/20 text-secondary"
-                          : "hover:bg-secondary/20 hover:text-secondary"
+                          ? "bg-secondary/10 text-secondary"
+                          : "hover:bg-secondary/10 hover:text-secondary"
                       )}
                     >
                       <Icon className={cn(
@@ -268,7 +268,7 @@ export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showSto
         </div>
 
         <div>
-          <CategoryHeader label="Maßnahmen" open={openCategories.massnahmen} onToggle={() => toggleCategory("massnahmen")} accentClass="text-destructive" bgClass="bg-destructive/10" />
+          <CategoryHeader label="Maßnahmen" open={openCategories.massnahmen} onToggle={() => toggleCategory("massnahmen")} accentClass="text-destructive" bgClass="bg-destructive/[0.04]" />
           <CollapsibleContent open={openCategories.massnahmen}>
             <ul className="space-y-1">
               {disziplinar.map((doc) => {
@@ -278,10 +278,10 @@ export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showSto
                     <button
                       onClick={() => onSelectDocument(doc.id)}
                       className={cn(
-                        "flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm transition-colors bg-destructive/10",
+                        "flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm transition-colors bg-destructive/5",
                         activeDocument === doc.id
-                          ? "bg-destructive/20 text-destructive"
-                          : "hover:bg-destructive/20 hover:text-destructive"
+                          ? "bg-destructive/10 text-destructive"
+                          : "hover:bg-destructive/10 hover:text-destructive"
                       )}
                     >
                       <Icon className={cn(
@@ -298,17 +298,17 @@ export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showSto
         </div>
 
         <div>
-          <CategoryHeader label="Vergütungsverhandlung" open={openCategories.verguetung} onToggle={() => toggleCategory("verguetung")} accentClass="text-purple-500" bgClass="bg-purple-500/10" />
+          <CategoryHeader label="Vergütungsverhandlung" open={openCategories.verguetung} onToggle={() => toggleCategory("verguetung")} accentClass="text-purple-500" bgClass="bg-purple-500/[0.04]" />
           <CollapsibleContent open={openCategories.verguetung}>
             <ul className="space-y-1">
               <li>
                 <button
                   onClick={onOpenVerguetung}
                   className={cn(
-                    "flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm transition-colors bg-purple-500/10",
+                    "flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm transition-colors bg-purple-500/5",
                     showVerguetung
-                      ? "bg-purple-500/20 text-purple-500"
-                      : "hover:bg-purple-500/20 hover:text-purple-500"
+                      ? "bg-purple-500/10 text-purple-500"
+                      : "hover:bg-purple-500/10 hover:text-purple-500"
                   )}
                 >
                   <TrendingUp className={cn("w-4 h-4 transition-colors", showVerguetung ? "text-purple-500" : "")} />
@@ -320,13 +320,13 @@ export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showSto
         </div>
 
         <div className="opacity-50">
-          <CategoryHeader label="PFAU.NRW" open={openCategories.pfau} onToggle={() => toggleCategory("pfau")} subtitle="In Entwicklung" accentClass="text-muted-foreground" bgClass="bg-muted/30" />
+          <CategoryHeader label="PFAU.NRW" open={openCategories.pfau} onToggle={() => toggleCategory("pfau")} subtitle="In Entwicklung" bgClass="bg-muted/10" />
           <CollapsibleContent open={openCategories.pfau}>
             <ul className="space-y-1">
               <li>
                 <button
                   disabled
-                  className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm cursor-not-allowed bg-muted/40"
+                  className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm cursor-not-allowed bg-muted/20"
                 >
                   <BarChart2 className="w-4 h-4" />
                   Prognosemeldungen
@@ -335,7 +335,7 @@ export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showSto
               <li>
                 <button
                   disabled
-                  className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm cursor-not-allowed bg-muted/40"
+                  className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm cursor-not-allowed bg-muted/20"
                 >
                   <Calculator className="w-4 h-4" />
                   Ausgleichszuweisung
@@ -344,7 +344,7 @@ export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showSto
               <li>
                 <button
                   disabled
-                  className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm cursor-not-allowed bg-muted/40"
+                  className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm cursor-not-allowed bg-muted/20"
                 >
                   <ClipboardList className="w-4 h-4" />
                   Umlagemeldung
