@@ -16,23 +16,37 @@ export interface Employee {
   krankenkasse: string
   beschaeftigung: string
   lbnr: string
+  wochenstunden: string
+  handzeichenRolle: "pdl" | "stellv_pdl" | ""
   notizen: string
   archiviert: boolean
+  archiviertAm: number | null
   createdAt: number
 }
 
 const FILENAME = "MOROX/mitarbeiter.json"
 
+function withDefaults(e: Employee): Employee {
+  return {
+    ...e,
+    wochenstunden: e.wochenstunden ?? "",
+    handzeichenRolle: e.handzeichenRolle ?? "",
+    archiviertAm: e.archiviertAm ?? null,
+  }
+}
+
 async function readEmployees(): Promise<Employee[]> {
   const isTauri = typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "__TAURI__" in window)
   if (!isTauri) {
     const raw = localStorage.getItem("morox_mitarbeiter")
-    return raw ? JSON.parse(raw) : []
+    const parsed: Employee[] = raw ? JSON.parse(raw) : []
+    return parsed.map(withDefaults)
   }
   try {
     const { BaseDirectory, readTextFile } = await import("@tauri-apps/plugin-fs")
     const raw = await readTextFile(FILENAME, { baseDir: BaseDirectory.Document })
-    return JSON.parse(raw)
+    const parsed: Employee[] = JSON.parse(raw)
+    return parsed.map(withDefaults)
   } catch {
     return []
   }
@@ -83,11 +97,11 @@ export async function updateEmployee(id: string, data: Partial<Omit<Employee, "i
 }
 
 export async function archiveEmployee(id: string): Promise<void> {
-  await updateEmployee(id, { archiviert: true })
+  await updateEmployee(id, { archiviert: true, archiviertAm: Date.now() })
 }
 
 export async function restoreEmployee(id: string): Promise<void> {
-  await updateEmployee(id, { archiviert: false })
+  await updateEmployee(id, { archiviert: false, archiviertAm: null })
 }
 
 export async function deleteEmployee(id: string): Promise<void> {

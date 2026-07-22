@@ -57,6 +57,8 @@ interface AppSidebarProps {
   onOpenAusgleichszuweisung?: () => void
   showUmlagemeldung?: boolean
   onOpenUmlagemeldung?: () => void
+  showHandzeichenliste?: boolean
+  onOpenHandzeichenliste?: () => void
 }
 
 type CategoryKey = "vertraege" | "zeugnisse" | "massnahmen" | "verguetung" | "pfau"
@@ -110,7 +112,7 @@ function CategoryHeader({
   )
 }
 
-export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showStorage, onOpenStorage, showMitarbeiter, onOpenMitarbeiter, showStundenliste, onOpenStundenliste, showVerguetung, onOpenVerguetung, showPrognosemeldungen, onOpenPrognosemeldungen, showAusgleichszuweisung, onOpenAusgleichszuweisung, showUmlagemeldung, onOpenUmlagemeldung }: AppSidebarProps) {
+export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showStorage, onOpenStorage, showMitarbeiter, onOpenMitarbeiter, showStundenliste, onOpenStundenliste, showVerguetung, onOpenVerguetung, showPrognosemeldungen, onOpenPrognosemeldungen, showAusgleichszuweisung, onOpenAusgleichszuweisung, showUmlagemeldung, onOpenUmlagemeldung, showHandzeichenliste, onOpenHandzeichenliste }: AppSidebarProps) {
   const vertraege = documentTypes.filter((d) => d.category === "vertraege")
   const zeugnisse = documentTypes.filter((d) => d.category === "zeugnisse")
   const disziplinar = documentTypes.filter((d) => d.category === "disziplinar")
@@ -147,7 +149,7 @@ export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showSto
             onClick={onGoHome}
             className={cn(
               "flex items-center gap-3 w-full px-3 py-2 rounded-md text-sm font-medium transition-colors",
-              activeDocument === null && !showStorage && !showMitarbeiter && !showStundenliste && !showVerguetung && !showPrognosemeldungen && !showAusgleichszuweisung && !showUmlagemeldung
+              activeDocument === null && !showStorage && !showMitarbeiter && !showStundenliste && !showVerguetung && !showPrognosemeldungen && !showAusgleichszuweisung && !showUmlagemeldung && !showHandzeichenliste
                 ? "bg-sidebar-accent text-sidebar-accent-foreground"
                 : "hover:bg-sidebar-accent/50"
             )}
@@ -196,13 +198,16 @@ export function AppSidebar({ activeDocument, onSelectDocument, onGoHome, showSto
           </button>
 
           <button
-            disabled
-            className="flex items-center gap-3 w-full px-3 py-2 rounded-md text-sm font-medium text-sidebar-foreground/40 cursor-not-allowed"
-            title="In Entwicklung"
+            onClick={onOpenHandzeichenliste}
+            className={cn(
+              "flex items-center gap-3 w-full px-3 py-2 rounded-md text-sm font-medium transition-colors",
+              showHandzeichenliste
+                ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                : "hover:bg-sidebar-accent/50"
+            )}
           >
-            <PenTool className="w-4 h-4 shrink-0" />
-            <span className="flex-1 text-left">Handzeichenliste</span>
-            <span className="text-[10px] italic shrink-0">In Entwicklung</span>
+            <PenTool className="w-4 h-4" />
+            Handzeichenliste
           </button>
 
         </div>

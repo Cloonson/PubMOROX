@@ -212,7 +212,7 @@ export function diffEmployees(
       matched.add(emp.id)
       const changes: string[] = []
       for (const { key, label } of COMPARE_FIELDS) {
-        const oldVal = (emp as Record<string, string>)[key] || ""
+        const oldVal = (emp as unknown as Record<string, string>)[key] || ""
         const newVal = p[key] || ""
         if (oldVal !== newVal && newVal !== "") {
           changes.push(`${label}: „${oldVal || "—"}" → „${newVal}"`)

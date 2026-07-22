@@ -7,6 +7,7 @@ import { DocumentForm } from "@/components/document-form"
 import { StorageView } from "@/components/storage-view"
 import { MitarbeiterView } from "@/components/mitarbeiter-view"
 import { StundenlisteView } from "@/components/stundenliste-view"
+import { HandzeichenlisteView } from "@/components/handzeichenliste-view"
 import { VerguetungsverhandlungenView } from "@/components/verguetungsverhandlungen-view"
 import { PrognosemeldungView } from "@/components/prognosemeldung-view"
 import { AusgleichszuweisungView } from "@/components/ausgleichszuweisung-view"
@@ -21,6 +22,7 @@ export default function Home() {
   const [showStorage, setShowStorage] = useState(false)
   const [showMitarbeiter, setShowMitarbeiter] = useState(false)
   const [showStundenliste, setShowStundenliste] = useState(false)
+  const [showHandzeichenliste, setShowHandzeichenliste] = useState(false)
   const [showVerguetung, setShowVerguetung] = useState(false)
   const [showPrognosemeldungen, setShowPrognosemeldungen] = useState(false)
   const [showAusgleichszuweisung, setShowAusgleichszuweisung] = useState(false)
@@ -31,6 +33,7 @@ export default function Home() {
     setShowStorage(false)
     setShowMitarbeiter(false)
     setShowStundenliste(false)
+    setShowHandzeichenliste(false)
     setShowVerguetung(false)
     setShowPrognosemeldungen(false)
     setShowAusgleichszuweisung(false)
@@ -65,6 +68,12 @@ export default function Home() {
     setActiveDocument(null)
     resetViews()
     setShowStundenliste(true)
+  }
+
+  const handleOpenHandzeichenliste = () => {
+    setActiveDocument(null)
+    resetViews()
+    setShowHandzeichenliste(true)
   }
 
   const handleOpenVerguetung = () => {
@@ -116,6 +125,8 @@ export default function Home() {
         onOpenMitarbeiter={handleOpenMitarbeiter}
         showStundenliste={showStundenliste}
         onOpenStundenliste={handleOpenStundenliste}
+        showHandzeichenliste={showHandzeichenliste}
+        onOpenHandzeichenliste={handleOpenHandzeichenliste}
         showVerguetung={showVerguetung}
         onOpenVerguetung={handleOpenVerguetung}
         showPrognosemeldungen={showPrognosemeldungen}
@@ -126,13 +137,15 @@ export default function Home() {
         onOpenUmlagemeldung={handleOpenUmlagemeldung}
       />
       <main className="flex-1 overflow-auto relative">
-        {activeDocument === null && !showStorage && !showMitarbeiter && !showStundenliste && !showVerguetung && !showPrognosemeldungen && !showAusgleichszuweisung && !showUmlagemeldung && <SettingsDialog />}
+        {activeDocument === null && !showStorage && !showMitarbeiter && !showStundenliste && !showHandzeichenliste && !showVerguetung && !showPrognosemeldungen && !showAusgleichszuweisung && !showUmlagemeldung && <SettingsDialog />}
         {showStorage ? (
           <StorageView />
         ) : showMitarbeiter ? (
           <MitarbeiterView onPrintDocument={handlePrintFromEmployee} />
         ) : showStundenliste ? (
           <StundenlisteView />
+        ) : showHandzeichenliste ? (
+          <HandzeichenlisteView />
         ) : showVerguetung ? (
           <VerguetungsverhandlungenView />
         ) : showPrognosemeldungen ? (

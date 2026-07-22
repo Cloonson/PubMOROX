@@ -44,6 +44,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { toast } from "sonner"
 import {
   listEmployees,
@@ -78,8 +85,11 @@ const EMPTY_FORM: Omit<Employee, "id" | "createdAt"> = {
   mitNr: "",
   krankenkasse: "",
   lbnr: "",
+  wochenstunden: "",
+  handzeichenRolle: "",
   notizen: "",
   archiviert: false,
+  archiviertAm: null,
 }
 
 interface DeleteConfirm {
@@ -159,6 +169,21 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
     if (!formData.vorname.trim() || !formData.nachname.trim()) {
       toast.error("Vor- und Nachname sind Pflichtfelder")
       return
+    }
+    if (formData.handzeichenRolle) {
+      const conflict = allEmployees.find(
+        (e) =>
+          e.id !== editingEmployee?.id &&
+          !e.archiviert &&
+          e.handzeichenRolle === formData.handzeichenRolle
+      )
+      if (conflict) {
+        toast.warning(
+          `${conflict.vorname} ${conflict.nachname} ist bereits als ${
+            formData.handzeichenRolle === "pdl" ? "PDL" : "stellv. PDL"
+          } markiert — wird hier trotzdem gespeichert.`
+        )
+      }
     }
     try {
       if (editingEmployee) {
@@ -760,7 +785,28 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
               {field("mitNr", "Mit.Nr.", "text", "32")}
               {field("krankenkasse", "Krankenkasse", "text", "BARMER")}
             </div>
-            {field("lbnr", "LBNR", "text", "")}
+            <div className="grid grid-cols-2 gap-3">
+              {field("lbnr", "LBNR", "text", "")}
+              {field("wochenstunden", "Wochenstunden", "text", "39")}
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Rolle für Handzeichenliste</Label>
+              <Select
+                value={formData.handzeichenRolle || "keine"}
+                onValueChange={(v) =>
+                  setFormData((p) => ({ ...p, handzeichenRolle: v === "keine" ? "" : (v as "pdl" | "stellv_pdl") }))
+                }
+              >
+                <SelectTrigger className="text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="keine">Keine</SelectItem>
+                  <SelectItem value="pdl">Pflegedienstleitung (PDL)</SelectItem>
+                  <SelectItem value="stellv_pdl">stellvertretende PDL</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             {field("strasse", "Straße & Hausnummer", "text", "Musterstraße 1")}
             <div className="grid grid-cols-3 gap-3">
               <div>{field("plz", "PLZ", "text", "44388")}</div>
@@ -867,6 +913,20 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
                   <div className="space-y-0.5">
                     <p className="text-xs text-muted-foreground">LBNR</p>
                     <p className="font-medium">{detailEmployee.lbnr}</p>
+                  </div>
+                )}
+                {detailEmployee.wochenstunden && (
+                  <div className="space-y-0.5">
+                    <p className="text-xs text-muted-foreground">Wochenstunden</p>
+                    <p className="font-medium">{detailEmployee.wochenstunden}</p>
+                  </div>
+                )}
+                {detailEmployee.handzeichenRolle && (
+                  <div className="space-y-0.5 col-span-2">
+                    <p className="text-xs text-muted-foreground">Handzeichenliste</p>
+                    <p className="font-medium">
+                      {detailEmployee.handzeichenRolle === "pdl" ? "Pflegedienstleitung (PDL)" : "stellvertretende PDL"}
+                    </p>
                   </div>
                 )}
                 {detailEmployee.notizen && (
