@@ -1,5 +1,7 @@
 "use client"
 
+import { saveGeneratedFile, isExportCancelled } from "@/lib/file-export"
+
 import { useState, useRef } from "react"
 import { Upload, Download, FileSpreadsheet, Users, BarChart3, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -43,13 +45,9 @@ export function VerguetungsverhandlungenView() {
       if (!resp.ok) throw new Error("Template nicht gefunden: " + TEMPLATE_PATH)
       const templateBuffer = await resp.arrayBuffer()
       const blob = await fillBerechnungsschema(templateBuffer, result)
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = "Berechnungsschema_2025_ausgefuellt.xlsx"
-      a.click()
-      URL.revokeObjectURL(url)
+      await saveGeneratedFile(blob, "Berechnungsschema_2025_ausgefuellt.xlsx")
     } catch (err) {
+      if (isExportCancelled(err)) return
       setError("Fehler beim Ausfüllen: " + String(err))
     } finally {
       setFilling(false)

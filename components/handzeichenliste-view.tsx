@@ -1,5 +1,7 @@
 "use client"
 
+import { isExportCancelled } from "@/lib/file-export"
+
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
   PenTool,
@@ -51,6 +53,7 @@ import {
   type HandzeichenlisteDraft,
   type HandzeichenlisteRecord,
 } from "@/lib/handzeichenliste-service"
+import { missingHandzeichenFields } from "@/lib/handzeichenliste-validation"
 import { exportHandzeichenlistePdf } from "@/lib/handzeichenliste-pdf"
 import { exportHandzeichenlisteExcel } from "@/lib/handzeichenliste-excel"
 
@@ -71,6 +74,19 @@ export function HandzeichenlisteView() {
   const [records, setRecords] = useState<HandzeichenlisteRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [verlaufOpen, setVerlaufOpen] = useState(false)
+  const [showMissingFields, setShowMissingFields] = useState(false)
+  const [pendingExport, setPendingExport] = useState<"pdf" | "excel" | null>(null)
+  const [exporting, setExporting] = useState(false)
+  const missingFields = useMemo(() => missingHandzeichenFields(draft), [draft])
+  const missingKeys = new Set(missingFields.map((field) => field.key))
+  const fieldProps = (key: string) => {
+    const missing = showMissingFields && missingKeys.has(key)
+    return {
+      "aria-invalid": missing || undefined,
+      title: missing ? "Dieses Feld ist noch leer oder unvollständig" : undefined,
+      style: missing ? { borderColor: "hsl(var(--destructive))", backgroundColor: "hsl(var(--destructive) / 0.08)" } : undefined,
+    }
+  }
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Import-Assistent
@@ -90,6 +106,7 @@ export function HandzeichenlisteView() {
       ])
       setEmployees(emps)
       setDraft(savedDraft ?? EMPTY_DRAFT)
+      setShowMissingFields(savedDraft !== null)
       setRecords(recs)
     } finally {
       setLoading(false)
@@ -178,10 +195,18 @@ export function HandzeichenlisteView() {
       stellvPdlRow: stellvEmp ? employeeToRow(stellvEmp, "stellv_pdl") : null,
       weitereMitarbeiter: weitere,
     }
+    try {
+      await saveDraft(newDraft)
+    } catch {
+      toast.error("Import konnte nicht gespeichert werden. Bitte erneut versuchen.")
+      return
+    }
     setDraft(newDraft)
-    await saveDraft(newDraft)
     setStep2Open(false)
-    toast.success(`${weitere.length + 2} Mitarbeiter übernommen`)
+    setShowMissingFields(true)
+    toast.success(`Handzeichenliste importiert: ${weitere.length + 2} Mitarbeiter übernommen`, { duration: 6000 })
+    const missing = missingHandzeichenFields(newDraft)
+    if (missing.length > 0) toast.warning(`${missing.length} Felder sind noch leer oder unvollständig und wurden markiert`, { duration: 6000 })
   }
 
   const updateRow = (index: number, field: keyof HandzeichenRow, value: string) => {
@@ -206,6 +231,7 @@ export function HandzeichenlisteView() {
   }
 
   const addManualRow = () => {
+    setShowMissingFields(true)
     setDraft((prev) => ({ ...prev, weitereMitarbeiter: [...prev.weitereMitarbeiter, { ...EMPTY_ROW }] }))
   }
 
@@ -215,40 +241,43 @@ export function HandzeichenlisteView() {
     [draft.pdlRow?.employeeId, draft.stellvPdlRow?.employeeId, ...draft.weitereMitarbeiter.map((r) => r.employeeId)]
       .filter((id): id is string => !!id)
 
-  const handleExportPdf = async () => {
-    if (!draft.periodeLabel.trim()) {
-      toast.error("Bitte zuerst eine Periode angeben (z. B. \"Juli 2025\")")
-      return
-    }
+  const exportDraft = async (format: "pdf" | "excel") => {
+    setPendingExport(null)
+    setExporting(true)
+    const periodeLabel = draft.periodeLabel.trim() || "Ohne Periode"
+    const filenameBase = `Handzeichenliste_${periodeLabel.replace(/\s+/g, "_")}`
     try {
-      const filename = await exportHandzeichenlistePdf(draft, `Handzeichenliste_${draft.periodeLabel.replace(/\s+/g, "_")}`)
-      await upsertRecord({ periodeLabel: draft.periodeLabel, employeeIds: employeeIdsInDraft(), pdfFilename: filename })
+      const filename = format === "pdf"
+        ? await exportHandzeichenlistePdf(draft, filenameBase)
+        : await exportHandzeichenlisteExcel(draft, filenameBase)
+      await upsertRecord({
+        periodeLabel,
+        employeeIds: employeeIdsInDraft(),
+        ...(format === "pdf" ? { pdfFilename: filename } : { excelFilename: filename }),
+      })
       setRecords(await listRecords())
-      toast.success("PDF exportiert")
     } catch (err: any) {
-      toast.error(`Fehler beim PDF-Export: ${err.message ?? err}`)
+      if (isExportCancelled(err)) return
+      toast.error(`Fehler beim Export: ${err.message ?? err}`)
+    } finally {
+      setExporting(false)
     }
   }
 
-  const handleExportExcel = async () => {
-    if (!draft.periodeLabel.trim()) {
-      toast.error("Bitte zuerst eine Periode angeben (z. B. \"Juli 2025\")")
+  const requestExport = (format: "pdf" | "excel") => {
+    setShowMissingFields(true)
+    if (missingFields.length > 0) {
+      setPendingExport(format)
       return
     }
-    try {
-      const filename = await exportHandzeichenlisteExcel(draft, `Handzeichenliste_${draft.periodeLabel.replace(/\s+/g, "_")}`)
-      await upsertRecord({ periodeLabel: draft.periodeLabel, employeeIds: employeeIdsInDraft(), excelFilename: filename })
-      setRecords(await listRecords())
-      toast.success("Excel exportiert")
-    } catch (err: any) {
-      toast.error(`Fehler beim Excel-Export: ${err.message ?? err}`)
-    }
+    void exportDraft(format)
   }
 
   const handleRedownload = async (filename: string) => {
     try {
       await downloadPersistedExport(filename)
     } catch (err: any) {
+      if (isExportCancelled(err)) return
       toast.error(err.message ?? "Datei nicht gefunden")
     }
   }
@@ -259,7 +288,7 @@ export function HandzeichenlisteView() {
       <div className="mb-3">
         <p className="text-xs font-semibold text-muted-foreground mb-1">{label}</p>
         <div className="grid grid-cols-8 gap-1 items-center bg-muted/30 rounded px-1 py-1 text-xs">
-          <Input className="h-7 text-xs col-span-2" placeholder="Name, Vorname"
+          <Input {...fieldProps(`${which}.name`)} className="h-7 text-xs col-span-2" placeholder="Name, Vorname"
             value={row ? `${row.nachname}${row.nachname && row.vorname ? ", " : ""}${row.vorname}` : ""}
             onChange={(e) => {
               const [nachname, vorname] = e.target.value.split(",").map((s) => s.trim())
@@ -267,10 +296,10 @@ export function HandzeichenlisteView() {
               updatePinnedRow(which, "vorname", vorname ?? "")
             }}
           />
-          <Input className="h-7 text-xs col-span-2" placeholder="Anschrift" value={row?.anschrift ?? ""} onChange={(e) => updatePinnedRow(which, "anschrift", e.target.value)} />
-          <Input className="h-7 text-xs" placeholder="Quali." value={row?.qualifikation ?? ""} onChange={(e) => updatePinnedRow(which, "qualifikation", e.target.value)} />
-          <Input className="h-7 text-xs" placeholder="Std." value={row?.wochenstunden ?? ""} onChange={(e) => updatePinnedRow(which, "wochenstunden", e.target.value)} />
-          <Input className="h-7 text-xs" placeholder="Beginn" value={row?.beschaeftigungsbeginn ?? ""} onChange={(e) => updatePinnedRow(which, "beschaeftigungsbeginn", e.target.value)} />
+          <Input {...fieldProps(`${which}.anschrift`)} className="h-7 text-xs col-span-2" placeholder="Anschrift" value={row?.anschrift ?? ""} onChange={(e) => updatePinnedRow(which, "anschrift", e.target.value)} />
+          <Input {...fieldProps(`${which}.qualifikation`)} className="h-7 text-xs" placeholder="Quali." value={row?.qualifikation ?? ""} onChange={(e) => updatePinnedRow(which, "qualifikation", e.target.value)} />
+          <Input {...fieldProps(`${which}.wochenstunden`)} className="h-7 text-xs" placeholder="Std." value={row?.wochenstunden ?? ""} onChange={(e) => updatePinnedRow(which, "wochenstunden", e.target.value)} />
+          <Input {...fieldProps(`${which}.beschaeftigungsbeginn`)} className="h-7 text-xs" placeholder="Beginn" value={row?.beschaeftigungsbeginn ?? ""} onChange={(e) => updatePinnedRow(which, "beschaeftigungsbeginn", e.target.value)} />
           <Input className="h-7 text-xs" placeholder="Ausg. am" value={row?.ausgeschiedenAm ?? ""} onChange={(e) => updatePinnedRow(which, "ausgeschiedenAm", e.target.value)} />
         </div>
       </div>
@@ -300,11 +329,11 @@ export function HandzeichenlisteView() {
             <Upload className="w-4 h-4" />
             Aus Mitarbeiterliste importieren
           </Button>
-          <Button variant="outline" className="gap-2" onClick={handleExportExcel}>
+          <Button variant="outline" className="gap-2" disabled={exporting || loading} onClick={() => requestExport("excel")}>
             <FileSpreadsheet className="w-4 h-4" />
             Excel exportieren
           </Button>
-          <Button className="gap-2" onClick={handleExportPdf}>
+          <Button className="gap-2" disabled={exporting || loading} onClick={() => requestExport("pdf")}>
             <Download className="w-4 h-4" />
             PDF exportieren
           </Button>
@@ -314,6 +343,7 @@ export function HandzeichenlisteView() {
       <Card className="p-4 mb-4">
         <Label className="text-xs text-muted-foreground">Periode (für Dateiname & Verlauf)</Label>
         <Input
+          {...fieldProps("periode")}
           className="max-w-xs mt-1"
           placeholder='z. B. "Juli 2025"'
           value={draft.periodeLabel}
@@ -321,9 +351,16 @@ export function HandzeichenlisteView() {
         />
       </Card>
 
+      {showMissingFields && missingFields.length > 0 && (
+        <div role="status" className="mb-4 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm">
+          {missingFields.length} Felder sind noch leer oder unvollständig. Die betroffenen Felder sind rot markiert.
+          Du kannst sie ergänzen oder nach dem Hinweis trotzdem exportieren.
+        </div>
+      )}
+
       {loading ? (
         <p className="text-center text-muted-foreground py-12">Laden...</p>
-      ) : totalCount === 0 ? (
+      ) : totalCount === 0 && !showMissingFields ? (
         <div className="text-center py-16 text-muted-foreground">
           <PenTool className="w-12 h-12 mx-auto mb-3 opacity-20" />
           <p className="font-medium">Noch keine Handzeichenliste angelegt</p>
@@ -360,6 +397,8 @@ export function HandzeichenlisteView() {
                         <td className="border p-0.5">
                           <div className="flex items-center gap-1">
                             <Input
+                              {...fieldProps(`mitarbeiter.${globalIndex}.name`)}
+                              disabled={globalIndex >= draft.weitereMitarbeiter.length}
                               className="h-7 text-xs border-transparent bg-transparent"
                               value={`${row.nachname}${row.nachname && row.vorname ? ", " : ""}${row.vorname}`}
                               placeholder="Nachname, Vorname"
@@ -377,27 +416,27 @@ export function HandzeichenlisteView() {
                           </div>
                         </td>
                         <td className="border p-0.5">
-                          <Input className="h-7 text-xs border-transparent bg-transparent" value={row.anschrift}
+                          <Input disabled={globalIndex >= draft.weitereMitarbeiter.length} {...fieldProps(`mitarbeiter.${globalIndex}.anschrift`)} className="h-7 text-xs border-transparent bg-transparent" value={row.anschrift}
                             onChange={(e) => updateRow(globalIndex, "anschrift", e.target.value)} />
                         </td>
                         <td className="border p-0.5">
-                          <Input className="h-7 text-xs text-center border-transparent bg-transparent" value={row.qualifikation}
+                          <Input disabled={globalIndex >= draft.weitereMitarbeiter.length} {...fieldProps(`mitarbeiter.${globalIndex}.qualifikation`)} className="h-7 text-xs text-center border-transparent bg-transparent" value={row.qualifikation}
                             onChange={(e) => updateRow(globalIndex, "qualifikation", e.target.value)} />
                         </td>
                         <td className="border p-0.5">
-                          <Input className="h-7 text-xs text-center border-transparent bg-transparent" value={row.wochenstunden}
+                          <Input disabled={globalIndex >= draft.weitereMitarbeiter.length} {...fieldProps(`mitarbeiter.${globalIndex}.wochenstunden`)} className="h-7 text-xs text-center border-transparent bg-transparent" value={row.wochenstunden}
                             onChange={(e) => updateRow(globalIndex, "wochenstunden", e.target.value)} />
                         </td>
                         <td className="border p-0.5">
-                          <Input className="h-7 text-xs text-center border-transparent bg-transparent" value={row.beschaeftigungsbeginn}
+                          <Input disabled={globalIndex >= draft.weitereMitarbeiter.length} {...fieldProps(`mitarbeiter.${globalIndex}.beschaeftigungsbeginn`)} className="h-7 text-xs text-center border-transparent bg-transparent" value={row.beschaeftigungsbeginn}
                             onChange={(e) => updateRow(globalIndex, "beschaeftigungsbeginn", e.target.value)} />
                         </td>
                         <td className="border p-0.5">
-                          <Input className="h-7 text-xs text-center border-transparent bg-transparent" value={row.ausgeschiedenAm}
+                          <Input disabled={globalIndex >= draft.weitereMitarbeiter.length} className="h-7 text-xs text-center border-transparent bg-transparent" value={row.ausgeschiedenAm}
                             onChange={(e) => updateRow(globalIndex, "ausgeschiedenAm", e.target.value)} />
                         </td>
                         <td className="border p-0.5 text-center">
-                          <button onClick={() => removeRow(globalIndex)} className="text-muted-foreground hover:text-destructive" title="Zeile entfernen">
+                          <button disabled={globalIndex >= draft.weitereMitarbeiter.length} onClick={() => removeRow(globalIndex)} className="text-muted-foreground hover:text-destructive" title="Zeile entfernen">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </td>
@@ -415,6 +454,22 @@ export function HandzeichenlisteView() {
           </Button>
         </div>
       )}
+
+      <Dialog open={pendingExport !== null} onOpenChange={(open) => { if (!open) setPendingExport(null) }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Noch leere oder unvollständige Felder</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {missingFields.length} Felder sind noch nicht vollständig ausgefüllt. Du kannst die markierten Felder ergänzen oder die Handzeichenliste trotzdem erstellen.
+          </p>
+          <ul className="max-h-52 overflow-y-auto list-disc pl-5 text-sm space-y-1">
+            {missingFields.map((field) => <li key={field.key}>{field.label}</li>)}
+          </ul>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingExport(null)}>Felder ergänzen</Button>
+            <Button disabled={exporting} onClick={() => { if (pendingExport) void exportDraft(pendingExport) }}>Trotzdem erstellen</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Schritt 1: PDL bestätigen */}
       <Dialog open={step1Open} onOpenChange={setStep1Open}>
@@ -503,7 +558,7 @@ export function HandzeichenlisteView() {
           </DialogHeader>
           {!isTauri() && (
             <p className="text-xs text-muted-foreground">
-              Erneuter Download ist nur in der installierten Desktop-App verfügbar.
+              Gespeicherte Exporte können in der Desktop-App erneut über „Speichern unter“ ausgegeben werden.
             </p>
           )}
           {records.length === 0 ? (

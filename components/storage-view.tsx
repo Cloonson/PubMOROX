@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react"
 import { listStoredFiles, deleteFileFromStorage, openFileFromStorage, type StoredFile } from "@/lib/storage-service"
-import { FileText, Download, Trash2, Search, RefreshCw, FileBox, FolderOpen } from "lucide-react"
+import { FileText, ExternalLink, Trash2, Search, RefreshCw, FileBox, FolderOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -136,9 +136,9 @@ export function StorageView() {
                       variant="ghost"
                       size="icon"
                       onClick={() => openFileFromStorage(file.name)}
-                      title="Herunterladen"
+                      title="Datei öffnen"
                     >
-                      <Download className="w-4 h-4" />
+                      <ExternalLink className="w-4 h-4" />
                     </Button>
                     <Button
                       variant="ghost"

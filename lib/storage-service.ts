@@ -1,3 +1,5 @@
+import { openSavedFile } from "@/lib/file-export"
+import { toast } from "sonner"
 export interface StoredFile {
   name: string;
   path: string;
@@ -40,22 +42,13 @@ export async function listStoredFiles(): Promise<StoredFile[]> {
 
 export async function openFileFromStorage(filename: string) {
   try {
-    const { BaseDirectory, readFile } = await import("@tauri-apps/plugin-fs");
-    
-    // Lade aus Dokumente/MOROX/files Ordner
-    const content = await readFile(`MOROX/files/${filename}`, { baseDir: BaseDirectory.Document });
-    const blob = new Blob([content], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
-    
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    const { documentDir, join } = await import("@tauri-apps/api/path")
+    const path = await join(await documentDir(), "MOROX", "files", filename)
+    await openSavedFile(path)
+    toast.success("Datei geöffnet", { description: filename })
   } catch (error) {
     console.error("Fehler beim Öffnen der Datei:", error);
+    toast.error("Datei konnte nicht geöffnet werden");
   }
 }
 

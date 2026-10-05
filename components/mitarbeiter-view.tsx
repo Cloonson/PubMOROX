@@ -18,7 +18,7 @@ import {
   Upload,
   ArchiveRestore,
   Archive,
-  Download,
+  ExternalLink,
   CheckSquare,
   Square,
   MinusSquare,
@@ -962,8 +962,8 @@ export function MitarbeiterView({ onPrintDocument }: MitarbeiterViewProps) {
                           className="flex items-center gap-1 text-xs text-primary hover:underline"
                           title={doc.filename}
                         >
-                          <Download className="w-3.5 h-3.5" />
-                          Herunterladen
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          Öffnen
                         </button>
                       </div>
                     ))}

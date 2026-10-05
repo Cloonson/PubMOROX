@@ -40,25 +40,25 @@ if sig and tar:
     }
     print(f"✓ darwin-x86_64", file=sys.stderr)
 
-# Windows — NSIS .exe + .exe.sig
-sig = find_one(f"{bundles_dir}/bundle-windows/nsis/*.exe.sig")
-exe = find_one(f"{bundles_dir}/bundle-windows/nsis/*.exe")
-if sig and exe:
-    platforms["windows-x86_64"] = {
+# Keep the installed Windows bundle type. Switching MSI -> NSIS can create a
+# second installation while existing shortcuts still launch the old MSI copy.
+# Tauri prefers OS-ARCH-INSTALLER over the generic OS-ARCH key.
+for installer, directory, extension in (("nsis", "nsis", "exe"), ("msi", "msi", "msi")):
+    artifacts = glob.glob(f"{bundles_dir}/bundle-windows/{directory}/*.{extension}")
+    if len(artifacts) != 1:
+        sys.exit(f"ERROR: expected exactly one Windows {installer} artifact, found {len(artifacts)}")
+    artifact = artifacts[0]
+    sig = f"{artifact}.sig"
+    if not os.path.isfile(sig) or not read_sig(sig):
+        sys.exit(f"ERROR: missing or empty signature for {artifact}")
+    platforms[f"windows-x86_64-{installer}"] = {
         "signature": read_sig(sig),
-        "url": f"{base_url}/{os.path.basename(exe)}"
+        "url": f"{base_url}/{os.path.basename(artifact)}"
     }
-    print(f"✓ windows-x86_64", file=sys.stderr)
-else:
-    # Fallback: MSI
-    sig = find_one(f"{bundles_dir}/bundle-windows/msi/*.msi.sig")
-    msi = find_one(f"{bundles_dir}/bundle-windows/msi/*.msi")
-    if sig and msi:
-        platforms["windows-x86_64"] = {
-            "signature": read_sig(sig),
-            "url": f"{base_url}/{os.path.basename(msi)}"
-        }
-        print(f"✓ windows-x86_64 (msi)", file=sys.stderr)
+    print(f"✓ windows-x86_64-{installer}", file=sys.stderr)
+
+# Compatibility for clients that do not yet select an installer-specific key.
+platforms["windows-x86_64"] = platforms["windows-x86_64-nsis"]
 
 out = {
     "version": version,

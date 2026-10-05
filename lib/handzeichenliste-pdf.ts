@@ -1,3 +1,5 @@
+import { saveGeneratedFile, safeExportName } from "@/lib/file-export"
+import { toast } from "sonner"
 import { ROWS_PER_PAGE, paginate, persistExportFile, type HandzeichenRow, type HandzeichenlisteDraft } from "@/lib/handzeichenliste-service"
 
 const COLUMNS = [
@@ -67,10 +69,6 @@ export async function buildHandzeichenlistePdf(draft: HandzeichenlisteDraft): Pr
     doc.setFontSize(11)
     doc.text("Dokumentation der Unterschriften / Handzeichen der beschäftigten Pflegekräfte / Mitarbeiter", margin, y)
     y += 6
-    doc.setFont("helvetica", "italic")
-    doc.setFontSize(8)
-    doc.text("Name und Anschrift der Krankenpflegeeinrichtung", margin, y)
-    y += 5
     doc.setFont("helvetica", "bold")
     doc.setFontSize(10)
     doc.setTextColor(150, 20, 20)
@@ -109,12 +107,6 @@ export async function buildHandzeichenlistePdf(draft: HandzeichenlisteDraft): Pr
     LEGEND_RIGHT.forEach((line, i) => doc.text(line, margin + 140, footerY + i * 3.2))
     footerY += Math.max(LEGEND_LEFT.length, LEGEND_RIGHT.length) * 3.2 + 3
 
-    doc.setFontSize(7)
-    doc.text(
-      "Sofern Qualifikationsnachweis bisher nicht eingereicht wurde, bitte auf gesondertem Blatt angeben.",
-      margin,
-      footerY
-    )
     // Leerraum zum tatsächlichen Unterschreiben, bevor die Linie + Beschriftung kommt
     footerY += 16
 
@@ -146,16 +138,13 @@ function pdlRowFallback(): HandzeichenRow {
 
 export async function exportHandzeichenlistePdf(draft: HandzeichenlisteDraft, filename: string): Promise<string> {
   const blob = await buildHandzeichenlistePdf(draft)
-  const finalName = filename.endsWith(".pdf") ? filename : `${filename}.pdf`
-  await persistExportFile(finalName, blob)
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement("a")
-  a.href = url
-  a.download = finalName
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
+  const finalName = safeExportName(filename.endsWith(".pdf") ? filename : `${filename}.pdf`)
+  await saveGeneratedFile(blob, finalName)
+  try {
+    await persistExportFile(finalName, blob)
+  } catch {
+    toast.warning("Datei gespeichert, konnte aber nicht im MOROX-Verlauf archiviert werden")
+  }
   return finalName
 }
 

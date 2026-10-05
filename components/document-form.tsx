@@ -1,5 +1,7 @@
 "use client"
 
+import { isExportCancelled } from "@/lib/file-export"
+
 import React from "react"
 
 import { useState } from "react"
@@ -231,7 +233,6 @@ export function DocumentForm({ documentType, onBack, onDocumentCreated, initialD
           ende: formData.befristungEnde ? formatDate(String(formData.befristungEnde)) : undefined,
         }
         await generateArbeitsvertrag(data)
-        toast.success("Arbeitsvertrag wurde erfolgreich erstellt!")
         onDocumentCreated?.()
       } else if (documentType === "arbeitszeugnis" || documentType === "zwischenzeugnis") {
         const data = {
@@ -250,7 +251,6 @@ export function DocumentForm({ documentType, onBack, onDocumentCreated, initialD
           beendet: String(formData.beendet || "nein"),
         }
         await generateArbeitszeugnis(data)
-        toast.success("Zeugnis wurde erfolgreich erstellt!")
         onDocumentCreated?.()
       } else if (documentType === "aushilfsvertrag") {
         // Hole die Minijob-Grenze aus localStorage
@@ -273,7 +273,6 @@ export function DocumentForm({ documentType, onBack, onDocumentCreated, initialD
         }
 
         await generateAushilfsvertrag(data, formData.befristet === "befristet")
-        toast.success("Dokument wurde erfolgreich erstellt!")
         onDocumentCreated?.()
       } else if (documentType === "ausbildungsvertrag") {
         const data = {
@@ -291,7 +290,6 @@ export function DocumentForm({ documentType, onBack, onDocumentCreated, initialD
         }
 
         await generateAusbildungsvertrag(data, formData.geschlecht as "männlich" | "weiblich")
-        toast.success("Ausbildungsvertrag wurde erfolgreich erstellt!")
         onDocumentCreated?.()
       } else if (documentType === "kuendigung") {
         const data = {
@@ -308,7 +306,6 @@ export function DocumentForm({ documentType, onBack, onDocumentCreated, initialD
         }
 
         await generateKuendigung(data)
-        toast.success("Kündigung wurde erfolgreich erstellt!")
         onDocumentCreated?.()
       } else if (documentType === "abmahnung") {
         const data = {
@@ -322,7 +319,6 @@ export function DocumentForm({ documentType, onBack, onDocumentCreated, initialD
           konsequenz: String(formData.konsequenzen || "Im Wiederholungsfall behalten wir uns die Kündigung des Arbeitsverhältnisses vor."),
         }
         await generateAbmahnung(data)
-        toast.success("Abmahnung wurde erfolgreich erstellt!")
         onDocumentCreated?.()
       } else if (documentType === "aenderungsvereinbarung") {
         const data = {
@@ -335,13 +331,13 @@ export function DocumentForm({ documentType, onBack, onDocumentCreated, initialD
           aenderungen: String(formData.aenderungsText || ""),
         }
         await generateAenderungsvereinbarung(data)
-        toast.success("Änderungsvereinbarung wurde erfolgreich erstellt!")
         onDocumentCreated?.()
       } else {
         console.log("[v0] Form submitted with data:", formData)
         toast.info("Dokument-Daten wurden erfasst. DOCX-Export wird später implementiert.")
       }
     } catch (error) {
+      if (isExportCancelled(error)) return
       console.error("Fehler beim Erstellen des Dokuments:", error)
       
       // Zeige detaillierte Fehlermeldung an

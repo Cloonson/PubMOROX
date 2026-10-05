@@ -1,5 +1,7 @@
 "use client"
 
+import { isExportCancelled } from "@/lib/file-export"
+
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
   Clock3,
@@ -375,8 +377,11 @@ export function StundenlisteView() {
       toast.error("Keine Mitarbeiter ausgewählt")
       return
     }
-    await exportStundenlisten(buildEntries(ids), `Stundenliste_${year}_Auswahl`)
-    toast.success("Export erstellt")
+    try {
+      await exportStundenlisten(buildEntries(ids), `Stundenliste_${year}_Auswahl`)
+    } catch (err) {
+      if (!isExportCancelled(err)) toast.error(`Export fehlgeschlagen: ${String(err)}`)
+    }
   }
 
   const handleExportAll = async () => {
@@ -385,8 +390,11 @@ export function StundenlisteView() {
       toast.error("Keine Stundenlisten für dieses Jahr")
       return
     }
-    await exportStundenlisten(buildEntries(ids), `MitarbeiterStundenliste${year}`)
-    toast.success("Export erstellt")
+    try {
+      await exportStundenlisten(buildEntries(ids), `MitarbeiterStundenliste${year}`)
+    } catch (err) {
+      if (!isExportCancelled(err)) toast.error(`Export fehlgeschlagen: ${String(err)}`)
+    }
   }
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -425,7 +433,17 @@ export function StundenlisteView() {
           months: imp.months,
         })
       }
-      toast.success(`Import: ${matched} übernommen${unmatched > 0 ? `, ${unmatched} ohne passenden Mitarbeiter` : ""}`)
+      if (matched > 0) {
+        toast.success(`${matched} Stundenliste(n) erfolgreich importiert`, {
+          description: unmatched > 0 ? `${unmatched} Tabellenblatt/-blätter ohne passenden Mitarbeiter wurden übersprungen.` : undefined,
+          duration: 6000,
+        })
+      } else {
+        toast.warning("Keine Stundenlisten importiert", {
+          description: "Für die Tabellenblätter wurde kein passender Mitarbeiter gefunden.",
+          duration: 6000,
+        })
+      }
       await load()
     } catch {
       toast.error("Fehler beim Import — ist das eine gültige Stundenliste-Excel?")

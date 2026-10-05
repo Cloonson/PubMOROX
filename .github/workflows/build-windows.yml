@@ -48,8 +48,14 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci --legacy-peer-deps
 
+      - name: Test application regressions
+        run: npm test
+
       - name: Build Next.js
         run: npm run build
+
+      - name: Test native export functions
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
 
       - name: Build Tauri (macOS)
         if: matrix.platform == 'macos-latest'
@@ -108,6 +114,9 @@ jobs:
         run: |
           VERSION=$(python3 -c "import json; print(json.load(open('src-tauri/tauri.conf.json'))['version'])")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Test updater manifest generation
+        run: python3 -m unittest discover -s .github/scripts -p 'test_*.py'
 
       - name: Generate latest.json
         run: python3 .github/scripts/gen-latest-json.py bundles ${{ steps.ver.outputs.version }}

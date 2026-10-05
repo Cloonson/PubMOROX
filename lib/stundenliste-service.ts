@@ -209,15 +209,14 @@ export async function upsertSheetFull(sheet: StundenlisteSheet): Promise<void> {
  * Summe = Vormonat + StundenAktuell
  * Reststunden = Summe - Ausgezahlt - AusgezahlteÜberstunden
  *
- * Urlaub: Anspruch[Jan] = urlaubsanspruchLaufendesJahr (einmalige Jahres-Eingabe, roh)
- * Anspruch[Feb] = (resturlaubsanspruchVorjahr + Anspruch[Jan]) - UrlaubGenommen[Jan]
- * Anspruch[n>Feb] = Anspruch[n-1] - UrlaubGenommen[n-1]
+ * Urlaub: Anspruch[Jan] = urlaubsanspruchLaufendesJahr + resturlaubsanspruchVorjahr
+ * Anspruch[n>Jan] = Anspruch[n-1] - UrlaubGenommen[n-1]
  * Resturlaubstage (Spalte N) = Anspruch[Dez] - UrlaubGenommen[Dez]
  */
 export function computeMonths(sheet: StundenlisteSheet): MonthComputed[] {
   const result: MonthComputed[] = []
   let prevReststunden = sheet.stundenVormonatJan
-  let anspruch = sheet.urlaubsanspruchLaufendesJahr
+  let anspruch = sheet.urlaubsanspruchLaufendesJahr + sheet.resturlaubsanspruchVorjahr
 
   for (let i = 0; i < 12; i++) {
     const m = sheet.months[i] ?? EMPTY_MONTH
@@ -225,10 +224,8 @@ export function computeMonths(sheet: StundenlisteSheet): MonthComputed[] {
     const summe = stundenVormonat + m.stundenAktuell
     const reststunden = summe - m.ausgezahlt - m.ausgezahlteUeberstunden
 
-    if (i === 1) {
-      anspruch = sheet.resturlaubsanspruchVorjahr + anspruch - sheet.months[0].urlaubGenommen
-    } else if (i > 1) {
-      anspruch = anspruch - sheet.months[i - 1].urlaubGenommen
+    if (i > 0) {
+      anspruch = anspruch - (sheet.months[i - 1]?.urlaubGenommen ?? 0)
     }
 
     result.push({ ...m, stundenVormonat, summe, reststunden, urlaubsanspruch: anspruch })

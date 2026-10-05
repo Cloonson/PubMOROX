@@ -1,113 +1,34 @@
 import PizZip from "pizzip"
 import Docxtemplater from "docxtemplater"
-import { saveAs } from "file-saver-es"
+import { saveGeneratedFile } from "@/lib/file-export"
+import { toast } from "sonner"
 import expressions from "angular-expressions"
 import { addDocumentLog } from "./document-log"
 
-// Hilfsfunktion um zu prüfen ob wir in Tauri laufen
-function isTauri(): boolean {
-  return typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "__TAURI__" in window)
-}
-
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+const ensureDocxName = (name: string) => name.toLowerCase().endsWith(".docx") ? name : `${name}.docx`
 
-const ensureDocxName = (name: string) => (name && name.toLowerCase().endsWith(".docx")) ? name : `${name}.docx`
-
-// Sicherer Save-Helper mit korrektem Dateinamen (verhindert "Unknown")
-function toNamedFile(blob: Blob, targetFilename: string): File {
-  const safeName = ensureDocxName(targetFilename || "Dokument")
-  const typedBlob = blob.type ? blob : new Blob([blob], { type: DOCX_MIME })
-  return new File([typedBlob], safeName, { type: typedBlob.type || DOCX_MIME })
-}
-
-function browserDownload(blob: Blob, targetFilename: string) {
-  const file = toNamedFile(blob, targetFilename)
-  const url = URL.createObjectURL(file)
-  const a = document.createElement("a")
-  a.href = url
-  a.download = file.name
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
-  // Banner: etwas verzögert damit er unter dem Erfolgs-Toast erscheint
-  setTimeout(() => {
-    import("sonner").then(({ toast }) => {
-      toast.info(`Sie finden die Datei in Ihren Downloads.`, {
-        description: file.name,
-        duration: 6000,
-      })
-    })
-  }, 400)
-}
-
-async function logOutputPath() {
-  // Versuche den realen Pfad vom Projekt-Unterordner zu holen
-  try {
-    const { documentDir, join } = await import("@tauri-apps/api/path")
-    // Da wir nicht direkt auf den Projektordner zugreifen können ohne Security-Hürden, 
-    // nutzen wir den Documents/MOROX/files Pfad als stabilere Alternative 
-    // oder bleiben bei ResourceDir. 
-    // Aber der User will explizit einen "files"-Ordner im Projekt.
-  } catch {
-    // kein Tauri oder Pfad-API nicht verfügbar
-  }
-}
-
-// Speichere Datei im files Ordner
 async function saveToOutputFolder(
   blob: Blob,
   targetFilename: string,
   meta?: { type: string; vorname: string; nachname: string }
 ): Promise<void> {
-  const safeFilename = ensureDocxName(targetFilename)
-
-  if (isTauri()) {
+  const filename = ensureDocxName(targetFilename)
+  await saveGeneratedFile(blob, filename)
+  const isDesktop = typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "__TAURI__" in window)
+  if (isDesktop) {
     try {
-      // Importiere Tauri APIs dynamisch
       const { BaseDirectory, writeFile, mkdir } = await import("@tauri-apps/plugin-fs")
-      const { documentDir, join } = await import("@tauri-apps/api/path")
-      
-      // Nutze den Documents-Ordner als stabilen, sichtbaren Ort für den User
-      const docPath = await documentDir()
-      const moroPath = await join(docPath, "MOROX", "files")
-      
-      console.log(`Versuche in ${moroPath} zu speichern...`)
-
-      // In Tauri v2 müssen wir für Folder-Erstellung etc. meist BaseDirectories nutzen oder Scopes
-      // Wir nutzen hier Document-Directory als sicheren Hafen
-      try {
-        await mkdir("MOROX/files", { baseDir: BaseDirectory.Document, recursive: true })
-      } catch (e) {
-        // Ordner existiert wahrscheinlich schon
-      }
-      
-      const arrayBuffer = await blob.arrayBuffer()
-      const uint8Array = new Uint8Array(arrayBuffer)
-      
-      // Speichere im Documents/MOROX/files Ordner
-      await writeFile(`MOROX/files/${safeFilename}`, uint8Array, { baseDir: BaseDirectory.Document })
-
-      if (meta) await addDocumentLog({ ...meta, filename: safeFilename })
-
-      // Datei direkt öffnen
-      try {
-        const { openPath } = await import("@tauri-apps/plugin-opener")
-        const fullPath = await join(docPath, "MOROX", "files", safeFilename)
-        await openPath(fullPath)
-      } catch {
-        browserDownload(blob, safeFilename)
-      }
-    } catch (error: any) {
-      const msg = error?.message || String(error)
-      console.error("❌ Tauri Save Error:", error)
-      import("sonner").then(({ toast }) => toast.error("Speicherfehler: " + msg))
-      browserDownload(blob, safeFilename)
+      const { safeExportName } = await import("@/lib/file-export")
+      const archiveName = safeExportName(filename)
+      await mkdir("MOROX/files", { baseDir: BaseDirectory.Document, recursive: true })
+      await writeFile(`MOROX/files/${archiveName}`, new Uint8Array(await blob.arrayBuffer()), { baseDir: BaseDirectory.Document })
+      if (meta) await addDocumentLog({ ...meta, filename: archiveName })
+    } catch {
+      toast.warning("Datei gespeichert, konnte aber nicht im MOROX-Speicher archiviert werden")
     }
-  } else {
-    // Im Browser: normaler Download
-    browserDownload(blob, targetFilename)
-    if (meta) await addDocumentLog({ ...meta, filename: ensureDocxName(targetFilename) })
+  } else if (meta) {
+    await addDocumentLog({ ...meta, filename })
   }
 }
 

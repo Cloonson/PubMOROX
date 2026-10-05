@@ -1,5 +1,7 @@
 "use client"
 
+import { isExportCancelled } from "@/lib/file-export"
+
 import { useEffect, useRef, useState } from "react"
 import { ChevronLeft, Loader2, Send, Sparkles, Users, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -148,8 +150,8 @@ ${ctx ? `\nKontext:\n${ctx}` : ""}`
         titel,
         text,
       })
-      toast.success("Dokument erstellt!")
     } catch (e: any) {
+      if (isExportCancelled(e)) return
       toast.error("Fehler: " + e.message)
     } finally {
       setGenerating(false)

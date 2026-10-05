@@ -1,3 +1,4 @@
+import { saveGeneratedFile } from "@/lib/file-export"
 import { MONTHS, computeMonths, resturlaubstage, EMPTY_MONTH, type StundenlisteSheet, type MonthRaw } from "@/lib/stundenliste-service"
 
 const MONTH_FILLS = ["DDEBF7", "FFF2CC", "FCE4D6", "E2EFDA"]
@@ -5,6 +6,7 @@ const GRAY = "D9D9D9"
 const GREEN = "A9D08E"
 const ORANGE = "FFC000"
 const TAB_COLOR = "FF8181"
+const ANNUAL_LEAVE_LABEL = "Urlaubsanspruch laufendes Jahr (Basis)"
 
 const ROW = {
   header: 1,
@@ -53,7 +55,8 @@ export function writeStundenlisteSheet(
   ws.getColumn("B").width = 11.16
   ws.getColumn("N").width = 25.16
   ws.getRow(1).height = 27
-  for (let r = 2; r <= 14; r++) ws.getRow(r).height = 19
+  for (let r = 2; r <= 15; r++) ws.getRow(r).height = 19
+  ws.getRow(15).height = 32
 
   const setCell = (coord: string, value: unknown, opts?: { bold?: boolean; size?: number; center?: boolean; fillColor?: string; border?: "thin-top" | "medium" }) => {
     const cell = ws.getCell(coord)
@@ -80,16 +83,20 @@ export function writeStundenlisteSheet(
   setCell("A9", "Feiertag mit FZA")
   setCell("A10", "Feiertag ohne FZA", { fillColor: GRAY })
   setCell("N10", "Resturlaubstage", { bold: true, center: true })
-  setCell("A11", "Urlaubsanspruch laufendes Jahr")
+  setCell("A11", "Urlaubsanspruch")
   setCell("A12", "Urlaub genommen", { fillColor: GRAY })
   setCell("A14", "Resturlaubsanspruch Vorjahr", { fillColor: GREEN, border: "medium" })
   setCell("B14", sheetData.resturlaubsanspruchVorjahr, { fillColor: GREEN, border: "medium", center: true })
-  setCell("B11", sheetData.urlaubsanspruchLaufendesJahr, { center: true })
+  // Keep the editable annual basis separate from January's computed balance.
+  setCell("A15", ANNUAL_LEAVE_LABEL, { fillColor: GREEN })
+  ws.getCell("A15").alignment = { wrapText: true, vertical: "middle" }
+  setCell("B15", sheetData.urlaubsanspruchLaufendesJahr, { fillColor: GREEN, center: true })
 
   // Stunden Vormonat Januar ist in MOROX editierbar (Startwert ohne Vorjahres-Sheet) - im Original-Template
   // gab es dafür keine sichtbare Zelle, wir schreiben ihn hier trotzdem mit rein für Nachvollziehbarkeit
   setCell("B2", sheetData.stundenVormonatJan, { fillColor: GRAY, center: true })
 
+  const computed = computeMonths(sheetData)
   for (let i = 0; i < 12; i++) {
     const col = monthCol(i)
     const m: MonthRaw = sheetData.months[i] ?? EMPTY_MONTH
@@ -106,24 +113,22 @@ export function writeStundenlisteSheet(
     // Vormonat: Jan siehe B2 oben, Feb..Dez verweisen auf Reststunden des Vormonats
     if (i > 0) {
       const prevCol = monthCol(i - 1)
-      setCell(`${col}2`, { formula: `${prevCol}7` }, { fillColor: GRAY, center: true })
+      setCell(`${col}2`, { formula: `${prevCol}7`, result: computed[i].stundenVormonat }, { fillColor: GRAY, center: true })
     }
 
-    setCell(`${col}4`, { formula: i === 0 ? `${col}3` : `${col}2+${col}3` }, { fillColor: GRAY, center: true, border: "thin-top" })
-    setCell(`${col}7`, { formula: `${col}4-${col}5-${col}6` }, { fillColor: monthFill, center: true, border: "thin-top" })
+    setCell(`${col}4`, { formula: `${col}2+${col}3`, result: computed[i].summe }, { fillColor: GRAY, center: true, border: "thin-top" })
+    setCell(`${col}7`, { formula: `${col}4-${col}5-${col}6`, result: computed[i].reststunden }, { fillColor: monthFill, center: true, border: "thin-top" })
 
     // Urlaubsanspruch-Kette
     if (i === 0) {
-      // Jan zeigt den rohen Jahres-Anspruch direkt (bereits oben in B11 gesetzt)
-    } else if (i === 1) {
-      setCell(`${col}11`, { formula: "(B14+B11)-B12" }, { fillColor: monthFill, center: true })
+      setCell(`${col}11`, { formula: "B15+B14", result: computed[i].urlaubsanspruch }, { fillColor: monthFill, center: true })
     } else {
       const prevCol = monthCol(i - 1)
-      setCell(`${col}11`, { formula: `${prevCol}11-${prevCol}12` }, { fillColor: monthFill, center: true })
+      setCell(`${col}11`, { formula: `${prevCol}11-${prevCol}12`, result: computed[i].urlaubsanspruch }, { fillColor: monthFill, center: true })
     }
   }
 
-  setCell("N11", { formula: "M11-M12" }, { bold: true, center: true, fillColor: ORANGE })
+  setCell("N11", { formula: "M11-M12", result: resturlaubstage(sheetData, computed) }, { bold: true, center: true, fillColor: ORANGE })
 
   return ws
 }
@@ -134,6 +139,7 @@ export async function buildStundenlisteWorkbook(
   const ExcelJS = (await import("exceljs")).default
   const workbook = new ExcelJS.Workbook()
   workbook.creator = "MOROX"
+  workbook.calcProperties.fullCalcOnLoad = true
   workbook.created = new Date()
   for (const { employee, sheet } of entries) {
     writeStundenlisteSheet(workbook, employee, sheet)
@@ -148,14 +154,7 @@ export async function exportStundenlisten(
   const workbook = await buildStundenlisteWorkbook(entries)
   const buffer = await workbook.xlsx.writeBuffer()
   const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement("a")
-  a.href = url
-  a.download = filename.endsWith(".xlsx") ? filename : `${filename}.xlsx`
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
+  await saveGeneratedFile(blob, filename.endsWith(".xlsx") ? filename : `${filename}.xlsx`)
 }
 
 export interface ImportedSheet {
@@ -226,7 +225,10 @@ export async function importStundenlisten(buffer: ArrayBuffer): Promise<Imported
       nachname: names.nachname,
       year,
       stundenVormonatJan: Number.isFinite(stundenVormonatJan) ? stundenVormonatJan : 0,
-      urlaubsanspruchLaufendesJahr: num(ws.getCell("B11").value),
+      // Older templates/exports keep the annual basis in B11. New MOROX
+      // exports put it in B15; B11 now includes carryover and must not be
+      // imported as the annual basis (that would count carryover twice).
+      urlaubsanspruchLaufendesJahr: num(ws.getCell(ws.getCell("A15").value === ANNUAL_LEAVE_LABEL ? "B15" : "B11").value),
       resturlaubsanspruchVorjahr: num(ws.getCell("B14").value),
       months,
     })
